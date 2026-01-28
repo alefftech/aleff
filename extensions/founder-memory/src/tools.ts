@@ -1,6 +1,6 @@
 import type { AnyAgentTool } from "../../../src/agents/tools/common.js";
 import { saveToMemoryIndex, searchMessages, getConversationContext } from "./persist.js";
-import { isSupabaseConfigured } from "./supabase.js";
+import { isPostgresConfigured } from "./postgres.js";
 
 /**
  * Tool for agent to explicitly save important information to memory
@@ -48,10 +48,10 @@ export function createSaveToMemoryTool(): AnyAgentTool {
       importance?: number;
       tags?: string[];
     }) {
-      if (!isSupabaseConfigured()) {
+      if (!isPostgresConfigured()) {
         return {
           success: false,
-          error: "Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.",
+          error: "PostgreSQL not configured. Set DATABASE_URL or POSTGRES_* env vars.",
         };
       }
 
@@ -104,10 +104,10 @@ export function createSearchMemoryTool(): AnyAgentTool {
       required: ["query"],
     },
     async execute(params: { query: string; limit?: number }) {
-      if (!isSupabaseConfigured()) {
+      if (!isPostgresConfigured()) {
         return {
           success: false,
-          error: "Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.",
+          error: "PostgreSQL not configured. Set DATABASE_URL or POSTGRES_* env vars.",
           memories: [],
         };
       }
@@ -154,10 +154,10 @@ export function createGetContextTool(): AnyAgentTool {
       params: { limit?: number },
       ctx?: { sessionKey?: string; messageChannel?: string },
     ) {
-      if (!isSupabaseConfigured()) {
+      if (!isPostgresConfigured()) {
         return {
           success: false,
-          error: "Supabase not configured",
+          error: "PostgreSQL not configured",
           messages: [],
         };
       }

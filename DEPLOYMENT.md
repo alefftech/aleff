@@ -69,9 +69,12 @@ services:
       - ANTHROPIC_API_KEY=sk-ant-oat01-...  # Claude Max setup-token
       - TELEGRAM_BOT_TOKEN=...
       - NODE_ENV=production
-      # Founder Memory (P0) - Add these:
+      # Founder Memory (P0)
       - SUPABASE_URL=https://vxllqynrmwduobzcxake.supabase.co
       - SUPABASE_SERVICE_KEY=<service_role_key>  # Get from Supabase Dashboard
+      # Web Search APIs (auto-detects based on available keys)
+      - BRAVE_API_KEY=<your_brave_key>      # Get from https://brave.com/search/api/
+      - TAVILY_API_KEY=<your_tavily_key>    # Get from https://tavily.com
     volumes:
       - ./data:/home/node/.moltbot:rw
     command:
@@ -148,6 +151,29 @@ docker restart aleffai
 docker logs aleffai | grep -i "founder"
 # Should see: "Founder Memory plugin registered"
 ```
+
+### ✅ Web Search (IMPLEMENTED)
+- [x] Multi-provider support: Brave, Tavily, Perplexity
+- [x] Auto-detection based on available API keys
+- [x] Priority order: Tavily > Brave > Perplexity
+
+**To Enable:**
+1. Get API keys from providers:
+   - Brave: https://brave.com/search/api/
+   - Tavily: https://tavily.com
+   - Perplexity: https://perplexity.ai or OpenRouter
+2. Add to docker-compose.aleff.yml environment section
+3. Restart container
+
+**Auto-detection:**
+- Set one or more `*_API_KEY` environment variables
+- Agent automatically chooses best available provider
+- No config file changes needed
+
+**Docs:**
+- [Brave Search](./docs/brave-search.md)
+- [Tavily Search](./docs/tavily.md)
+- [Perplexity](./docs/perplexity.md)
 
 ### P1: Pokemon Generator
 - [ ] Analyze cto_todo for repetitive tasks

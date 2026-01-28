@@ -1,4 +1,4 @@
-import { getSupabaseClient, isSupabaseConfigured } from "./supabase.js";
+import { getPool, isPostgresConfigured, query, queryOne } from "./postgres.js";
 
 export type PersistMessageParams = {
   userId: string;
@@ -17,64 +17,52 @@ async function getOrCreateConversation(params: {
   userName?: string;
   channel: string;
 }): Promise<string | null> {
-  const supabase = getSupabaseClient();
-  if (!supabase) return null;
+  if (!isPostgresConfigured()) return null;
 
-  // Try to find existing active conversation (within last 24h)
-  const { data: existing } = await supabase
-    .from("aleff_conversations")
-    .select("id")
-    .eq("user_id", params.userId)
-    .eq("channel", params.channel)
-    .gte("last_message_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-    .order("last_message_at", { ascending: false })
-    .limit(1)
-    .single();
+  try {
+    // Try to find existing active conversation (within last 24h)
+    const existing = await queryOne<{ id: string }>(
+      `SELECT id FROM conversations 
+       WHERE user_id = $1 AND channel = $2 
+       AND last_message_at > NOW() - INTERVAL '24 hours'
+       ORDER BY last_message_at DESC
+       LIMIT 1`,
+      [params.userId, params.channel]
+    );
 
-  if (existing?.id) {
-    // Update last_message_at and increment count
-    await supabase
-      .from("aleff_conversations")
-      .update({
-        last_message_at: new Date().toISOString(),
-        message_count: supabase.rpc("increment_message_count", { row_id: existing.id }),
-      })
-      .eq("id", existing.id);
-    return existing.id;
-  }
+    if (existing?.id) {
+      // Update last_message_at and increment count
+      await query(
+        `UPDATE conversations 
+         SET last_message_at = NOW(), message_count = message_count + 1
+         WHERE id = $1`,
+        [existing.id]
+      );
+      return existing.id;
+    }
 
-  // Create new conversation
-  const { data: newConv, error } = await supabase
-    .from("aleff_conversations")
-    .insert({
-      user_id: params.userId,
-      user_name: params.userName,
-      channel: params.channel,
-      started_at: new Date().toISOString(),
-      last_message_at: new Date().toISOString(),
-      message_count: 1,
-    })
-    .select("id")
-    .single();
+    // Create new conversation
+    const newConv = await queryOne<{ id: string }>(
+      `INSERT INTO conversations (user_id, user_name, channel, started_at, last_message_at, message_count)
+       VALUES ($1, $2, $3, NOW(), NOW(), 1)
+       RETURNING id`,
+      [params.userId, params.userName || null, params.channel]
+    );
 
-  if (error) {
-    console.error("[founder-memory] Failed to create conversation:", error.message);
+    return newConv?.id ?? null;
+  } catch (err) {
+    console.error("[founder-memory] Failed to get/create conversation:", err);
     return null;
   }
-
-  return newConv?.id ?? null;
 }
 
 /**
- * Persist a message to Supabase
+ * Persist a message to Postgres
  */
 export async function persistMessage(params: PersistMessageParams): Promise<boolean> {
-  if (!isSupabaseConfigured()) {
+  if (!isPostgresConfigured()) {
     return false;
   }
-
-  const supabase = getSupabaseClient();
-  if (!supabase) return false;
 
   try {
     const conversationId = await getOrCreateConversation({
@@ -83,30 +71,25 @@ export async function persistMessage(params: PersistMessageParams): Promise<bool
       channel: params.channel,
     });
 
-    const { error } = await supabase.from("aleff_messages").insert({
-      conversation_id: conversationId,
-      role: params.role,
-      content: params.content,
-      metadata: params.metadata ?? {},
-    });
-
-    if (error) {
-      console.error("[founder-memory] Failed to persist message:", error.message);
-      return false;
-    }
+    await query(
+      `INSERT INTO messages (conversation_id, role, content, metadata)
+       VALUES ($1, $2, $3, $4)`,
+      [conversationId, params.role, params.content, JSON.stringify(params.metadata ?? {})]
+    );
 
     // Log to audit_log
-    await supabase.from("aleff_audit_log").insert({
-      action_type: "message_saved",
-      action_detail: `${params.role} message persisted`,
-      user_id: params.userId,
-      conversation_id: conversationId,
-      success: true,
-      metadata: {
-        channel: params.channel,
-        content_length: params.content.length,
-      },
-    });
+    await query(
+      `INSERT INTO audit_log (action_type, action_detail, user_id, conversation_id, success, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        "message_saved",
+        `${params.role} message persisted`,
+        params.userId,
+        conversationId,
+        true,
+        JSON.stringify({ channel: params.channel, content_length: params.content.length }),
+      ]
+    );
 
     return true;
   } catch (err) {
@@ -126,26 +109,22 @@ export async function saveToMemoryIndex(params: {
   tags?: string[];
   userId?: string;
 }): Promise<boolean> {
-  if (!isSupabaseConfigured()) {
+  if (!isPostgresConfigured()) {
     return false;
   }
 
-  const supabase = getSupabaseClient();
-  if (!supabase) return false;
-
   try {
-    const { error } = await supabase.from("aleff_memory_index").insert({
-      key_type: params.keyType,
-      key_name: params.keyName,
-      summary: params.content,
-      importance: params.importance ?? 5,
-      tags: params.tags ?? [],
-    });
-
-    if (error) {
-      console.error("[founder-memory] Failed to save to memory index:", error.message);
-      return false;
-    }
+    await query(
+      `INSERT INTO memory_index (key_type, key_name, summary, importance, tags)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        params.keyType,
+        params.keyName,
+        params.content,
+        params.importance ?? 5,
+        params.tags ?? [],
+      ]
+    );
 
     return true;
   } catch (err) {
@@ -162,40 +141,34 @@ export async function searchMessages(params: {
   limit?: number;
   userId?: string;
 }): Promise<Array<{ role: string; content: string; created_at: string }>> {
-  if (!isSupabaseConfigured()) {
+  if (!isPostgresConfigured()) {
     return [];
   }
 
-  const supabase = getSupabaseClient();
-  if (!supabase) return [];
-
   try {
-    let queryBuilder = supabase
-      .from("aleff_messages")
-      .select("role, content, created_at")
-      .textSearch("content", params.query)
-      .order("created_at", { ascending: false })
-      .limit(params.limit ?? 10);
+    let sql = `
+      SELECT m.role, m.content, m.created_at::text
+      FROM messages m
+      WHERE to_tsvector('portuguese', m.content) @@ plainto_tsquery('portuguese', $1)
+      ORDER BY m.created_at DESC
+      LIMIT $2
+    `;
+    let queryParams: any[] = [params.query, params.limit ?? 10];
 
     if (params.userId) {
-      // Join with conversations to filter by user
-      queryBuilder = supabase
-        .from("aleff_messages")
-        .select("role, content, created_at, conversations!inner(user_id)")
-        .textSearch("content", params.query)
-        .eq("conversations.user_id", params.userId)
-        .order("created_at", { ascending: false })
-        .limit(params.limit ?? 10);
+      sql = `
+        SELECT m.role, m.content, m.created_at::text
+        FROM messages m
+        JOIN conversations c ON m.conversation_id = c.id
+        WHERE to_tsvector('portuguese', m.content) @@ plainto_tsquery('portuguese', $1)
+        AND c.user_id = $3
+        ORDER BY m.created_at DESC
+        LIMIT $2
+      `;
+      queryParams = [params.query, params.limit ?? 10, params.userId];
     }
 
-    const { data, error } = await queryBuilder;
-
-    if (error) {
-      console.error("[founder-memory] Search failed:", error.message);
-      return [];
-    }
-
-    return data ?? [];
+    return await query(sql, queryParams);
   } catch (err) {
     console.error("[founder-memory] Error searching messages:", err);
     return [];
@@ -210,40 +183,31 @@ export async function getConversationContext(params: {
   channel: string;
   limit?: number;
 }): Promise<Array<{ role: string; content: string; created_at: string }>> {
-  if (!isSupabaseConfigured()) {
+  if (!isPostgresConfigured()) {
     return [];
   }
 
-  const supabase = getSupabaseClient();
-  if (!supabase) return [];
-
   try {
     // Find most recent conversation
-    const { data: conv } = await supabase
-      .from("aleff_conversations")
-      .select("id")
-      .eq("user_id", params.userId)
-      .eq("channel", params.channel)
-      .order("last_message_at", { ascending: false })
-      .limit(1)
-      .single();
+    const conv = await queryOne<{ id: string }>(
+      `SELECT id FROM conversations
+       WHERE user_id = $1 AND channel = $2
+       ORDER BY last_message_at DESC
+       LIMIT 1`,
+      [params.userId, params.channel]
+    );
 
     if (!conv?.id) return [];
 
     // Get messages from that conversation
-    const { data: messages, error } = await supabase
-      .from("aleff_messages")
-      .select("role, content, created_at")
-      .eq("conversation_id", conv.id)
-      .order("created_at", { ascending: true })
-      .limit(params.limit ?? 50);
-
-    if (error) {
-      console.error("[founder-memory] Failed to get context:", error.message);
-      return [];
-    }
-
-    return messages ?? [];
+    return await query(
+      `SELECT role, content, created_at::text
+       FROM messages
+       WHERE conversation_id = $1
+       ORDER BY created_at ASC
+       LIMIT $2`,
+      [conv.id, params.limit ?? 50]
+    );
   } catch (err) {
     console.error("[founder-memory] Error getting context:", err);
     return [];

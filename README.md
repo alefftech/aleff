@@ -32,9 +32,11 @@ ALEFF = MEMÓRIA INSTITUCIONAL + AUTOMAÇÃO + INTELIGÊNCIA
 - [x] Responder via Telegram (@aleff_000_bot)
 - [x] Usar Claude Opus 4.5 (Max subscription)
 - [x] Rodar 24/7 no dev-04
+- [x] **Web Search** - Busca inteligente via Brave, Tavily ou Perplexity (auto-detection)
+- [x] **Founder Memory** - Persistência de conversas no Supabase (PostgreSQL + pgvector)
 
 ### Em Desenvolvimento (Roadmap)
-- [ ] **Founder Memory** - Histórico + vector search em conversas
+- [ ] **Vector Search** - Busca semântica em histórico de conversas
 - [ ] **Supabase Queries** - Consultas naturais na fonte de verdade
 - [ ] **Pokemon Generator** - Gerar scripts de automação
 - [ ] **Safety Rails** - Aprovação humana para ações destrutivas

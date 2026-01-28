@@ -1,6 +1,6 @@
 import type { MoltbotPluginApi } from "../../src/plugins/types.js";
 import { persistMessage } from "./src/persist.js";
-import { isSupabaseConfigured } from "./src/supabase.js";
+import { isPostgresConfigured } from "./src/postgres.js";
 import {
   createSaveToMemoryTool,
   createSearchMemoryTool,
@@ -11,13 +11,13 @@ export default function register(api: MoltbotPluginApi) {
   const logger = api.logger;
 
   // Check configuration on startup
-  if (!isSupabaseConfigured()) {
+  if (!isPostgresConfigured()) {
     logger.warn(
-      "Founder Memory: SUPABASE_URL or SUPABASE_SERVICE_KEY not set. " +
-        "Memory persistence disabled. Set these env vars to enable.",
+      "Founder Memory: PostgreSQL not configured. " +
+        "Set DATABASE_URL or POSTGRES_* env vars to enable persistence.",
     );
   } else {
-    logger.info("Founder Memory: Supabase configured. Persistence enabled.");
+    logger.info("Founder Memory: PostgreSQL configured. Persistence enabled.");
   }
 
   // Register tools for the agent
@@ -27,10 +27,15 @@ export default function register(api: MoltbotPluginApi) {
 
   // Hook: Persist inbound messages
   api.on("message_received", async (event, ctx) => {
-    if (!isSupabaseConfigured()) return;
+    logger.info(`[founder-memory] message_received from=${event.from} channel=${ctx.channelId}`);
+    
+    if (!isPostgresConfigured()) {
+      logger.warn("[founder-memory] Postgres not configured, skipping persist");
+      return;
+    }
 
     try {
-      await persistMessage({
+      const result = await persistMessage({
         userId: event.from,
         channel: ctx.channelId,
         role: "user",
@@ -42,18 +47,28 @@ export default function register(api: MoltbotPluginApi) {
           ...event.metadata,
         },
       });
+      logger.info(`[founder-memory] Inbound message persisted: ${result}`);
     } catch (err) {
-      logger.warn(`Failed to persist inbound message: ${err}`);
+      logger.warn(`[founder-memory] Failed to persist inbound message: ${err}`);
     }
   });
 
   // Hook: Persist outbound messages
   api.on("message_sent", async (event, ctx) => {
-    if (!isSupabaseConfigured()) return;
-    if (!event.success) return; // Only persist successful sends
+    logger.info(`[founder-memory] message_sent to=${event.to} success=${event.success} channel=${ctx.channelId}`);
+    
+    if (!isPostgresConfigured()) {
+      logger.warn("[founder-memory] Postgres not configured, skipping persist");
+      return;
+    }
+    
+    if (!event.success) {
+      logger.info("[founder-memory] Message not successful, skipping persist");
+      return;
+    }
 
     try {
-      await persistMessage({
+      const result = await persistMessage({
         userId: event.to,
         channel: ctx.channelId,
         role: "assistant",
@@ -63,8 +78,9 @@ export default function register(api: MoltbotPluginApi) {
           accountId: ctx.accountId,
         },
       });
+      logger.info(`[founder-memory] Outbound message persisted: ${result}`);
     } catch (err) {
-      logger.warn(`Failed to persist outbound message: ${err}`);
+      logger.warn(`[founder-memory] Failed to persist outbound message: ${err}`);
     }
   });
 

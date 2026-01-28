@@ -1,11 +1,11 @@
 {
   "name": "@moltbot/founder-memory",
   "version": "1.0.0",
-  "description": "Persistent institutional memory plugin for Aleff using Supabase",
+  "description": "Persistent institutional memory plugin for Aleff using local PostgreSQL",
   "type": "module",
   "main": "index.ts",
   "dependencies": {
-    "@supabase/supabase-js": "^2.47.14"
+    "pg": "^8.17.2"
   },
   "peerDependencies": {
     "moltbot": "*"
