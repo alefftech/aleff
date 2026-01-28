@@ -22,7 +22,7 @@ async function getOrCreateConversation(params: {
 
   // Try to find existing active conversation (within last 24h)
   const { data: existing } = await supabase
-    .from("conversations")
+    .from("aleff_conversations")
     .select("id")
     .eq("user_id", params.userId)
     .eq("channel", params.channel)
@@ -34,7 +34,7 @@ async function getOrCreateConversation(params: {
   if (existing?.id) {
     // Update last_message_at and increment count
     await supabase
-      .from("conversations")
+      .from("aleff_conversations")
       .update({
         last_message_at: new Date().toISOString(),
         message_count: supabase.rpc("increment_message_count", { row_id: existing.id }),
@@ -45,7 +45,7 @@ async function getOrCreateConversation(params: {
 
   // Create new conversation
   const { data: newConv, error } = await supabase
-    .from("conversations")
+    .from("aleff_conversations")
     .insert({
       user_id: params.userId,
       user_name: params.userName,
@@ -83,7 +83,7 @@ export async function persistMessage(params: PersistMessageParams): Promise<bool
       channel: params.channel,
     });
 
-    const { error } = await supabase.from("messages").insert({
+    const { error } = await supabase.from("aleff_messages").insert({
       conversation_id: conversationId,
       role: params.role,
       content: params.content,
@@ -96,7 +96,7 @@ export async function persistMessage(params: PersistMessageParams): Promise<bool
     }
 
     // Log to audit_log
-    await supabase.from("audit_log").insert({
+    await supabase.from("aleff_audit_log").insert({
       action_type: "message_saved",
       action_detail: `${params.role} message persisted`,
       user_id: params.userId,
@@ -134,7 +134,7 @@ export async function saveToMemoryIndex(params: {
   if (!supabase) return false;
 
   try {
-    const { error } = await supabase.from("memory_index").insert({
+    const { error } = await supabase.from("aleff_memory_index").insert({
       key_type: params.keyType,
       key_name: params.keyName,
       summary: params.content,
@@ -171,7 +171,7 @@ export async function searchMessages(params: {
 
   try {
     let queryBuilder = supabase
-      .from("messages")
+      .from("aleff_messages")
       .select("role, content, created_at")
       .textSearch("content", params.query)
       .order("created_at", { ascending: false })
@@ -180,7 +180,7 @@ export async function searchMessages(params: {
     if (params.userId) {
       // Join with conversations to filter by user
       queryBuilder = supabase
-        .from("messages")
+        .from("aleff_messages")
         .select("role, content, created_at, conversations!inner(user_id)")
         .textSearch("content", params.query)
         .eq("conversations.user_id", params.userId)
@@ -220,7 +220,7 @@ export async function getConversationContext(params: {
   try {
     // Find most recent conversation
     const { data: conv } = await supabase
-      .from("conversations")
+      .from("aleff_conversations")
       .select("id")
       .eq("user_id", params.userId)
       .eq("channel", params.channel)
@@ -232,7 +232,7 @@ export async function getConversationContext(params: {
 
     // Get messages from that conversation
     const { data: messages, error } = await supabase
-      .from("messages")
+      .from("aleff_messages")
       .select("role, content, created_at")
       .eq("conversation_id", conv.id)
       .order("created_at", { ascending: true })

@@ -13,7 +13,7 @@ export function getSupabaseClient(): SupabaseClient | null {
   }
 
   supabaseClient = createClient(url, key, {
-    db: { schema: "aleff" },
+    db: { schema: "public" },
     auth: { persistSession: false },
   });
 
