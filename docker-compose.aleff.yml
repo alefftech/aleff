@@ -1,0 +1,77 @@
+services:
+  # =============================================================================
+  # PostgreSQL with pgvector for Founder Memory
+  # =============================================================================
+  postgres:
+    container_name: aleff-postgres
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aleff
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aleff_local_2026}
+      POSTGRES_DB: aleff_memory
+    volumes:
+      - /mnt/data/postgres/aleff:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aleff -d aleff_memory"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # =============================================================================
+  # Aleff AI - Moltbot with Founder Memory
+  # =============================================================================
+  aleffai:
+    container_name: aleffai
+    image: aleff:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "18789:18789"
+    env_file:
+      - .env
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - NODE_ENV=production
+      # Local Postgres for Founder Memory
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=aleff
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-aleff_local_2026}
+      - POSTGRES_DB=aleff_memory
+      - DATABASE_URL=postgresql://aleff:${POSTGRES_PASSWORD:-aleff_local_2026}@postgres:5432/aleff_memory
+    volumes:
+      - ./data:/home/node/.moltbot:rw
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command:
+      - node
+      - dist/index.js
+      - gateway
+      - --bind
+      - "lan"
+      - --port
+      - "18789"
+    networks:
+      - default
+      - traefik-public
+
+networks:
+  traefik-public:
+    external: true
