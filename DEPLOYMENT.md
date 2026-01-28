@@ -69,6 +69,9 @@ services:
       - ANTHROPIC_API_KEY=sk-ant-oat01-...  # Claude Max setup-token
       - TELEGRAM_BOT_TOKEN=...
       - NODE_ENV=production
+      # Founder Memory (P0) - Add these:
+      - SUPABASE_URL=https://vxllqynrmwduobzcxake.supabase.co
+      - SUPABASE_SERVICE_KEY=<service_role_key>  # Get from Supabase Dashboard
     volumes:
       - ./data:/home/node/.moltbot:rw
     command:
@@ -121,12 +124,30 @@ curl -s "https://api.telegram.org/bot<TOKEN>/deleteWebhook"
 docker restart aleffai
 ```
 
-## 🚀 Next Steps
+## 🚀 Features
 
-### P0: Founder Memory
-- [ ] Implement src/extensions/founder-memory.ts
-- [ ] Connect to Supabase aleff.messages table
-- [ ] Vector search via aleff.search_memory()
+### ✅ P0: Founder Memory (IMPLEMENTED)
+- [x] Plugin at `extensions/founder-memory/`
+- [x] Hooks `message_received` and `message_sent`
+- [x] Persists to Supabase `aleff.messages` and `aleff.conversations`
+- [x] Agent tools: `save_to_memory`, `search_memory`, `get_conversation_context`
+
+**To Enable:**
+1. Get service_role key from Supabase Dashboard → Settings → API
+2. Add `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` to docker-compose.aleff.yml
+3. Rebuild and restart container:
+   ```bash
+   cd /opt/aleff
+   git pull && pnpm install
+   docker build -t aleff:latest .
+   docker compose -f docker-compose.aleff.yml up -d
+   ```
+
+**Verify:**
+```bash
+docker logs aleffai | grep -i "founder"
+# Should see: "Founder Memory plugin registered"
+```
 
 ### P1: Pokemon Generator
 - [ ] Analyze cto_todo for repetitive tasks

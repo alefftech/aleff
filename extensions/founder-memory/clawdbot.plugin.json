@@ -1,0 +1,30 @@
+{
+  "id": "founder-memory",
+  "name": "Founder Memory",
+  "description": "Persistent institutional memory in Supabase for Aleff conversations",
+  "kind": "memory",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "supabaseUrl": {
+        "type": "string",
+        "description": "Supabase project URL"
+      },
+      "supabaseServiceKey": {
+        "type": "string",
+        "description": "Supabase service role key (from env SUPABASE_SERVICE_KEY)"
+      },
+      "autoCapture": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically capture all messages"
+      },
+      "schema": {
+        "type": "string",
+        "default": "aleff",
+        "description": "Supabase schema name"
+      }
+    }
+  }
+}
