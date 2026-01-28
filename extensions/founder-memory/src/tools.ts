@@ -1,6 +1,17 @@
 import type { AnyAgentTool } from "../../../src/agents/tools/common.js";
 import { saveToMemoryIndex, searchMessages, getConversationContext } from "./persist.js";
 import { isPostgresConfigured } from "./postgres.js";
+import {
+  upsertEntity,
+  findEntity,
+  getEntityRelationships,
+  findConnectionPath,
+  addFact,
+  getEntityFacts,
+  type EntityType,
+  type RelationshipType,
+  type FactType
+} from "./knowledge-graph.js";
 
 /**
  * Tool for agent to explicitly save important information to memory
@@ -180,6 +191,232 @@ export function createGetContextTool(): AnyAgentTool {
           content: m.content,
           timestamp: m.created_at,
         })),
+      };
+    },
+  };
+}
+
+/**
+ * Tool for querying the knowledge graph (entities and relationships)
+ */
+export function createKnowledgeGraphTool(): AnyAgentTool {
+  return {
+    name: "query_knowledge_graph",
+    description:
+      "Consulta o grafo de conhecimento para encontrar entidades e suas conexões. " +
+      "Útil para conversas longas onde você precisa lembrar quem é quem, quem trabalha onde, etc.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        entity: {
+          type: "string",
+          description: "Nome da entidade para consultar (pessoa, empresa, projeto)",
+        },
+        include_facts: {
+          type: "boolean",
+          description: "Incluir fatos conhecidos sobre a entidade",
+        },
+      },
+      required: ["entity"],
+    },
+    async execute(params: { entity: string; include_facts?: boolean }) {
+      if (!isPostgresConfigured()) {
+        return {
+          success: false,
+          error: "PostgreSQL not configured",
+        };
+      }
+
+      const entity = await findEntity(params.entity);
+      if (!entity) {
+        return {
+          success: false,
+          message: `Entidade "${params.entity}" não encontrada no grafo`,
+        };
+      }
+
+      const { outgoing, incoming } = await getEntityRelationships(params.entity);
+
+      const result: any = {
+        success: true,
+        entity: {
+          name: entity.name,
+          type: entity.entity_type,
+          description: entity.description,
+        },
+        relationships: {
+          outgoing: outgoing.map((r) => `${r.type} → ${r.to}`),
+          incoming: incoming.map((r) => `${r.from} → ${r.type}`),
+        },
+      };
+
+      if (params.include_facts) {
+        const facts = await getEntityFacts(params.entity, { limit: 10 });
+        result.facts = facts.map((f) => ({
+          type: f.fact_type,
+          content: f.content,
+          confidence: f.confidence,
+        }));
+      }
+
+      return result;
+    },
+  };
+}
+
+/**
+ * Tool for finding connections between entities
+ */
+export function createFindConnectionTool(): AnyAgentTool {
+  return {
+    name: "find_connection",
+    description:
+      "Encontra o caminho de conexão entre duas entidades no grafo. " +
+      "Por exemplo: como Ronald está conectado a MENTORINGBASE?",
+    inputSchema: {
+      type: "object",
+      properties: {
+        from: {
+          type: "string",
+          description: "Entidade de origem",
+        },
+        to: {
+          type: "string",
+          description: "Entidade de destino",
+        },
+      },
+      required: ["from", "to"],
+    },
+    async execute(params: { from: string; to: string }) {
+      if (!isPostgresConfigured()) {
+        return {
+          success: false,
+          error: "PostgreSQL not configured",
+        };
+      }
+
+      const result = await findConnectionPath({
+        from: params.from,
+        to: params.to,
+        maxDepth: 3,
+      });
+
+      if (!result || !result.found) {
+        return {
+          success: true,
+          found: false,
+          message: `Nenhuma conexão encontrada entre "${params.from}" e "${params.to}"`,
+        };
+      }
+
+      // Format path nicely
+      const pathStr = result.path!.entities
+        .map((entity, i) => {
+          if (i === result.path!.entities.length - 1) return entity;
+          return `${entity} --[${result.path!.relationships[i]}]--> `;
+        })
+        .join("");
+
+      return {
+        success: true,
+        found: true,
+        path: pathStr,
+        length: result.path!.length,
+        details: {
+          entities: result.path!.entities,
+          relationships: result.path!.relationships,
+        },
+      };
+    },
+  };
+}
+
+/**
+ * Tool for learning new facts about entities
+ */
+export function createLearnFactTool(): AnyAgentTool {
+  return {
+    name: "learn_fact",
+    description:
+      "Aprende um novo fato sobre uma entidade (pessoa, empresa, projeto). " +
+      "Use quando o Founder compartilhar informações importantes que devem ser lembradas.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        about: {
+          type: "string",
+          description: "Sobre quem/o quê é o fato",
+        },
+        type: {
+          type: "string",
+          enum: ["preference", "decision", "observation", "skill", "status"],
+          description: "Tipo do fato",
+        },
+        fact: {
+          type: "string",
+          description: "O conteúdo do fato",
+        },
+        confidence: {
+          type: "number",
+          description: "Nível de confiança (0-1, padrão 0.9)",
+          minimum: 0,
+          maximum: 1,
+        },
+      },
+      required: ["about", "type", "fact"],
+    },
+    async execute(params: {
+      about: string;
+      type: FactType;
+      fact: string;
+      confidence?: number;
+    }) {
+      if (!isPostgresConfigured()) {
+        return {
+          success: false,
+          error: "PostgreSQL not configured",
+        };
+      }
+
+      // Try to find entity, create if doesn't exist
+      let entity = await findEntity(params.about);
+      if (!entity) {
+        // Infer entity type (basic heuristics)
+        const type: EntityType = params.about.toUpperCase() === params.about
+          ? "company"
+          : "person";
+
+        entity = await upsertEntity({
+          type,
+          name: params.about,
+        });
+
+        if (!entity) {
+          return {
+            success: false,
+            error: `Failed to create entity "${params.about}"`,
+          };
+        }
+      }
+
+      const fact = await addFact({
+        entity: params.about,
+        type: params.type,
+        content: params.fact,
+        confidence: params.confidence,
+      });
+
+      if (!fact) {
+        return {
+          success: false,
+          error: "Failed to save fact",
+        };
+      }
+
+      return {
+        success: true,
+        message: `Aprendi: ${params.about} → [${params.type}] ${params.fact}`,
+        fact_id: fact.id,
       };
     },
   };

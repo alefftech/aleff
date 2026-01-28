@@ -5,6 +5,9 @@ import {
   createSaveToMemoryTool,
   createSearchMemoryTool,
   createGetContextTool,
+  createKnowledgeGraphTool,
+  createFindConnectionTool,
+  createLearnFactTool,
 } from "./src/tools.js";
 
 export default function register(api: MoltbotPluginApi) {
@@ -24,6 +27,11 @@ export default function register(api: MoltbotPluginApi) {
   api.registerTool(createSaveToMemoryTool(), { optional: true });
   api.registerTool(createSearchMemoryTool(), { optional: true });
   api.registerTool(createGetContextTool(), { optional: true });
+
+  // Knowledge graph tools
+  api.registerTool(createKnowledgeGraphTool(), { optional: true });
+  api.registerTool(createFindConnectionTool(), { optional: true });
+  api.registerTool(createLearnFactTool(), { optional: true });
 
   // Hook: Persist inbound messages
   api.on("message_received", async (event, ctx) => {
