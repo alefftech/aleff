@@ -1,7 +1,7 @@
 # Aleff AI - Deployment Summary
 **Date:** 2026-01-28  
 **Server:** dev-04 (ccx13, 178.156.214.14)  
-**Status:** ✅ DEPLOYED & RUNNING
+**Status:** ✅ DEPLOYED & WORKING
 
 ---
 
@@ -9,7 +9,8 @@
 
 ```
 Container: aleffai
-Status: running (healthy)
+Runtime: Docker
+Status: running
 Gateway: ws://127.0.0.1:18789 (localhost only)
 Telegram Bot: @aleff_000_bot
 Auto-start: systemd enabled
@@ -17,153 +18,127 @@ Auto-start: systemd enabled
 
 ## 🔑 Authentication
 
-**Claude Max OAuth configurado:**
-- Path host: `~/.claude/.credentials.json`
-- Path container: `/home/node/.moltbot/agents/main/agent/auth-profiles.json`
-- Profile: `claude-max` (OAuth tokens)
+**Claude Max via Setup-Token (OAuth Access Token):**
+- Set as `ANTHROPIC_API_KEY` environment variable
+- Token format: `sk-ant-oat01-...`
+- Generated via: `claude setup-token` on authenticated host
 
-## 📁 Estrutura de Arquivos
+## 📁 Files on Server
 
 ```
 /opt/aleff/
-├── docker-compose.aleff.yml  # Container config
-├── .env.local                 # Environment variables
+├── docker-compose.aleff.yml  # Container config with ANTHROPIC_API_KEY
 ├── data/
-│   └── moltbot.json          # Moltbot config (gateway + auth + telegram)
-└── logs/
+│   └── moltbot.json          # Gateway + Telegram config
+└── Dockerfile                # Built as aleff:latest
 ```
 
-## 🔧 Como acessar o container
+## 🔧 Commands
 
 ```bash
-# SSH no servidor
+# SSH to server
 ssh dev-04
 
-# Ver logs
+# View logs
 docker logs aleffai -f
 
-# Entrar no container (troubleshooting)
-docker exec -it aleffai sh
-
-# Verificar auth profiles
-docker exec aleffai cat /home/node/.moltbot/agents/main/agent/auth-profiles.json | jq .
-
 # Restart
-sudo systemctl restart aleff
-# ou
 docker restart aleffai
+
+# Stop/Start
+docker compose -f /opt/aleff/docker-compose.aleff.yml down
+docker compose -f /opt/aleff/docker-compose.aleff.yml up -d
+
+# Systemd
+sudo systemctl status aleffai
+sudo systemctl restart aleffai
 ```
 
-## 🧪 Como testar
+## 🔐 Config Files
 
-1. **Telegram Bot:**
-   ```
-   - Abrir Telegram
-   - Buscar: @aleff_000_bot
-   - Enviar: /start
-   - Testar: "olá, você está funcionando?"
-   ```
+### docker-compose.aleff.yml
+```yaml
+services:
+  aleffai:
+    container_name: aleffai
+    image: aleff:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18789:18789"
+    environment:
+      - ANTHROPIC_API_KEY=sk-ant-oat01-...  # Claude Max setup-token
+      - TELEGRAM_BOT_TOKEN=...
+      - NODE_ENV=production
+    volumes:
+      - ./data:/home/node/.moltbot:rw
+    command:
+      - node
+      - dist/index.js
+      - gateway
+      - --bind
+      - loopback
+      - --port
+      - "18789"
+```
 
-2. **Health Check:**
-   ```bash
-   ssh dev-04 "curl -s http://127.0.0.1:18789/health"
-   ```
+### data/moltbot.json
+```json
+{
+  "gateway": {
+    "mode": "local",
+    "port": 18789,
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "..."
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "...",
+      "allowFrom": ["*"]
+    }
+  }
+}
+```
 
 ## 🐛 Troubleshooting
 
-### Erro: "No API key found for provider anthropic"
+### "No API key found for provider anthropic"
+1. Generate setup-token: `claude setup-token` (requires interactive TTY)
+2. Use token as `ANTHROPIC_API_KEY` in docker-compose
+3. Restart container
 
-**Solução implementada:**
-1. Copiar credenciais do host para container:
-   ```bash
-   # Converter Claude credentials
-   cat ~/.claude/.credentials.json | jq '{
-     version: 1,
-     profiles: {
-       "claude-max": (
-         .claudeAiOauth | {
-           type: "oauth",
-           provider: "anthropic",
-           accessToken: .accessToken,
-           refreshToken: .refreshToken,
-           expires: .expires
-         }
-       )
-     }
-   }' > /tmp/auth-profiles.json
-   
-   # Copiar para container
-   docker cp /tmp/auth-profiles.json aleffai:/home/node/.moltbot/agents/main/agent/auth-profiles.json
-   docker exec aleffai chown node:node /home/node/.moltbot/agents/main/agent/auth-profiles.json
-   docker restart aleffai
-   ```
-
-2. Adicionar auth order no config:
-   ```json
-   {
-     "auth": {
-       "profiles": {
-         "claude-max": {
-           "provider": "anthropic",
-           "mode": "oauth"
-         }
-       },
-       "order": {
-         "anthropic": ["claude-max"]
-       }
-     }
-   }
-   ```
+### "HTTP 401: invalid x-api-key"
+- The API key is invalid or expired
+- Generate new setup-token: `claude setup-token`
+- Update `ANTHROPIC_API_KEY` in docker-compose.aleff.yml
 
 ### Telegram webhook conflict
-
-**Solução:**
 ```bash
 curl -s "https://api.telegram.org/bot<TOKEN>/deleteWebhook"
 docker restart aleffai
 ```
 
-## 📊 Supabase Schema
+## 🚀 Next Steps
 
-```sql
--- Database: holding (vxllqynrmwduobzcxake.supabase.co)
--- Schema: aleff
-
-Tables:
-- aleff.conversations       # Session tracking
-- aleff.messages            # Messages with vector(1536) embeddings
-- aleff.memory_index        # Indexed facts/decisions
-- aleff.pokemons_generated  # Generated automation scripts
-- aleff.audit_log           # Security trail
-
-Functions:
-- aleff.search_memory(query_embedding, threshold, limit)
-- aleff.get_conversation_context(conversation_id, limit)
-```
-
-## 🚀 Próximos Passos
-
-### P0: Founder Memory Extension
-```bash
-cd /mnt/HC_Volume_104479762/abckx/aleff
-mkdir -p src/extensions
-# Implementar founder-memory.ts
-```
+### P0: Founder Memory
+- [ ] Implement src/extensions/founder-memory.ts
+- [ ] Connect to Supabase aleff.messages table
+- [ ] Vector search via aleff.search_memory()
 
 ### P1: Pokemon Generator
-- Analisar tarefas repetitivas do cto_todo
-- Gerar scripts bash seguindo template
-- Auto-commit no repo pokemon/
+- [ ] Analyze cto_todo for repetitive tasks
+- [ ] Generate bash scripts following template
+- [ ] Auto-commit to pokemon/ repo
 
-### P2: Traefik Exposure (opcional)
-Se quiser expor via `aleff.a25.com.br`:
-```yaml
-labels:
-  - "traefik.enable=true"
-  - "traefik.http.routers.aleff.rule=Host(`aleff.a25.com.br`)"
-```
+### P2: Identity Configuration
+- [ ] Configure Aleff's personality via Telegram
+- [ ] Set up system prompts
+- [ ] Define safety rails
 
 ---
 
-**Last Updated:** 2026-01-28 14:12 UTC  
+**Last Updated:** 2026-01-28 14:36 UTC  
 **Owner:** CTO Ronald
