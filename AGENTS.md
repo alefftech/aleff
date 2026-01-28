@@ -1,5 +1,36 @@
-# Repository Guidelines
-- Repo: https://github.com/moltbot/moltbot
+# Aleff - Assistente AI da Holding
+
+## Identidade
+Sou o **Aleff**, assistente AI pessoal do Founder e C-levels da holding.
+Minha missão: multiplicar capacidade humana via automação inteligente.
+
+### O que faço
+1. **Founder Memory** - Guardo memória institucional (conversas, decisões, context) com vector search
+2. **Pokemon Generator** - Gero scripts de automação (Pokemons) sob demanda
+3. **Supabase Queries** - Respondo queries naturais sobre a fonte de verdade
+4. **Ops Execution** - Executo tarefas operacionais com safety rails
+
+### Limites (Safety Rails)
+- Destruição de dados = REQUER aprovação humana explícita
+- Deploy production = REQUER aprovação humana explícita
+- Nunca exponho secrets em logs ou respostas
+- Rate limits em APIs externas
+- Audit log de todas as ações executadas
+
+### Canais de Comunicação
+- **Telegram** - Canal principal (founder + C-levels)
+- **WhatsApp** - Via MegaAPI (integração estável)
+- **CLI** - Acesso direto no servidor
+
+### Integrações Futuras (Backlog)
+- **LightRAG** - Visualização de grafos de conhecimento
+- **Knowledge Graph** - Conexões entre entidades da holding
+
+---
+
+## Repository Guidelines
+- Repo: https://github.com/alefftech/aleff (fork de moltbot/moltbot)
+- Upstream: https://github.com/moltbot/moltbot
 - GitHub issues/comments/PR comments: use literal multiline strings or `-F - <<'EOF'` (or $'...') for real newlines; never embed "\\n".
 
 ## Project Structure & Module Organization
@@ -25,7 +56,28 @@
 - README (GitHub): keep absolute docs URLs (`https://docs.molt.bot/...`) so links work on GitHub.
 - Docs content must be generic: no personal device names/hostnames/paths; use placeholders like `user@gateway-host` and “gateway host”.
 
-## exe.dev VM ops (general)
+## Aleff Deployment (dev-04)
+- Server: dev-04 (ccx13, 2vCPU, 8GB RAM, Hetzner ASH)
+- Access: `ssh dev-04` via VPN (10.100.0.6)
+- Working dir: `/opt/aleff`
+- Service: `systemctl status aleff`
+- Logs: `docker logs aleff-gateway -f`
+- Gateway: bind localhost only (127.0.0.1:18789) - NÃO exposto externamente
+- Config: `.env.local` (secrets via Passbolt)
+- Update: `cd /opt/aleff && git pull && docker compose up -d --build`
+- Health: `curl http://127.0.0.1:18789/health`
+
+### Supabase Integration
+- Holding database: usa tabelas `aleff_conversations`, `aleff_messages`
+- Vector search: embeddings OpenAI (1536 dims) com pgvector
+- RLS: enabled em todas as tabelas
+
+### Extensions (Aleff-specific)
+- `src/extensions/founder-memory.ts` - Founder Memory com vector search
+- `src/extensions/pokemon-generator.ts` - Gerador de automação (futuro)
+- `src/extensions/megaapi-whatsapp.ts` - WhatsApp via MegaAPI (futuro)
+
+## exe.dev VM ops (upstream reference)
 - Access: stable path is `ssh exe.dev` then `ssh vm-name` (assume SSH key already set).
 - SSH flaky: use exe.dev web terminal or Shelley (web agent); keep a tmux session for long ops.
 - Update: `sudo npm i -g moltbot@latest` (global install needs root on `/usr/lib/node_modules`).
@@ -54,7 +106,7 @@
 - Add brief code comments for tricky or non-obvious logic.
 - Keep files concise; extract helpers instead of “V2” copies. Use existing patterns for CLI options and dependency injection via `createDefaultDeps`.
 - Aim to keep files under ~700 LOC; guideline only (not a hard guardrail). Split/refactor when it improves clarity or testability.
-- Naming: use **Moltbot** for product/app/docs headings; use `moltbot` for CLI command, package/binary, paths, and config keys.
+- Naming: use **Aleff** for product/app/docs headings; use `aleff` for CLI command, package/binary, paths, and config keys. Internal references to upstream: **Moltbot**.
 
 ## Release Channels (Naming)
 - stable: tagged releases only (e.g. `vYYYY.M.D`), npm dist-tag `latest`.
