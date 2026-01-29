@@ -1,20 +1,28 @@
 # =============================================================================
-# [COMPOSE:MAIN] Aleff AI - Production Stack
+# [COMPOSE:MAIN] AleffAI - Production Stack
 # =============================================================================
 #
 # Usage:
-#   docker compose -f docker-compose.aleff.yml up -d
-#   docker compose -f docker-compose.aleff.yml logs -f aleffai
-#   docker compose -f docker-compose.aleff.yml down
+#   docker compose -f docker-compose.aleffai.yml up -d
+#   docker compose -f docker-compose.aleffai.yml logs -f aleffai
+#   docker compose -f docker-compose.aleffai.yml down
 #
 # Requirements:
 #   - .env file with API keys (see .env.example)
-#   - traefik-public network created: docker network create traefik-public
-#   - /mnt/data/postgres/aleff directory exists
 #   - init-db.sql file for database schema
+#
+# Quick Start:
+#   1. cp .env.example .env
+#   2. Edit .env with your API keys
+#   3. docker compose -f docker-compose.aleff.yml up -d
 #
 # Architecture:
 #   aleffai (gateway:18789) → postgres (pgvector:5432)
+#
+# Portability:
+#   - Uses named volumes (no hardcoded paths)
+#   - Works on any Docker host
+#   - Optional Traefik integration (set ENABLE_TRAEFIK=true)
 #
 # =============================================================================
 
@@ -31,7 +39,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aleff_local_2026}
       POSTGRES_DB: aleff_memory
     volumes:
-      - /mnt/data/postgres/aleff:/var/lib/postgresql/data
+      # [VOL:DATA] PostgreSQL data - uses named volume for portability
+      # Override with POSTGRES_DATA_PATH env var for custom path
+      - ${POSTGRES_DATA_PATH:-aleff_postgres_data}:/var/lib/postgresql/data
+      # [VOL:INIT] Schema initialization
       - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "127.0.0.1:5432:5432"
@@ -53,13 +64,17 @@ services:
   # ===========================================================================
   aleffai:
     container_name: aleffai
-    image: aleff:latest
+    # [BUILD:IMAGE] Build from local Dockerfile or use pre-built
+    image: ${ALEFFAI_IMAGE:-aleffai:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "18789:18789"
+      - "${GATEWAY_PORT:-18789}:18789"
     env_file:
       - .env
     environment:
@@ -86,7 +101,7 @@ services:
     volumes:
       # [VOL:CONFIG] Moltbot configuration and state
       - ./data:/home/node/.moltbot:rw
-      # [VOL:CLAWDBOT] Agent credentials and OAuth tokens (CRITICAL for Claude Max)
+      # [VOL:CLAWDBOT] Agent credentials and OAuth tokens
       - ./clawdbot:/home/node/.clawdbot:rw
       # [VOL:GOGCLI] Google OAuth credentials
       - ./gogcli:/home/node/.config/gogcli:rw
@@ -105,7 +120,13 @@ services:
       - "18789"
     networks:
       - default
-      - traefik-public
+
+# =============================================================================
+# [COMPOSE:VOLUMES] Named Volumes (portable across hosts)
+# =============================================================================
+volumes:
+  aleff_postgres_data:
+    name: aleff_postgres_data
 
 # =============================================================================
 # [COMPOSE:NETWORKS] Network Configuration
@@ -113,5 +134,3 @@ services:
 networks:
   default:
     name: aleff_default
-  traefik-public:
-    external: true

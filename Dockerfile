@@ -44,11 +44,11 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-# [BUILD:DEPS] Copy dependency manifests
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-COPY ui/package.json ./ui/package.json
-COPY patches ./patches
-COPY scripts ./scripts
+# [BUILD:DEPS] Copy dependency manifests from app/
+COPY app/package.json app/pnpm-lock.yaml app/pnpm-workspace.yaml app/.npmrc ./
+COPY app/ui/package.json ./ui/package.json
+COPY app/patches ./patches
+COPY app/scripts ./scripts
 
 # [BUILD:INSTALL] Install Node.js dependencies
 RUN pnpm install --frozen-lockfile
@@ -104,8 +104,8 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
 RUN curl -sL https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_0.9.0_linux_amd64.tar.gz | tar xz -C /usr/local/bin/ && \
     chmod +x /usr/local/bin/gog
 
-# [BUILD:SOURCE] Copy application source code
-COPY . .
+# [BUILD:SOURCE] Copy application source code from app/
+COPY app/ .
 
 # [BUILD:COMPILE] Build TypeScript and bundle UI
 RUN CLAWDBOT_A2UI_SKIP_MISSING=1 pnpm build
