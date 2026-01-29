@@ -169,9 +169,16 @@ export async function persistMessage(params: PersistMessageParams): Promise<bool
 }
 
 /**
- * Save a specific fact/decision to memory index
+ * [PERSIST:MEMORY_INDEX] Save a specific fact/decision to memory index
  *
  * Used for explicit memory saves via the save_to_memory tool.
+ * Generates embedding for vector search retrieval.
+ *
+ * @param params.content - The content to save
+ * @param params.keyType - Category (decision, fact, preference, etc.)
+ * @param params.keyName - Short identifier for easy retrieval
+ * @param params.importance - 1-10 importance level (default 5)
+ * @param params.tags - Tags for organization and search
  */
 export async function saveToMemoryIndex(params: {
   content: string;
@@ -186,22 +193,51 @@ export async function saveToMemoryIndex(params: {
   }
 
   try {
-    await query(
-      `INSERT INTO memory_index (key_type, key_name, summary, importance, tags)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [params.keyType, params.keyName, params.content, params.importance ?? 5, params.tags ?? []]
-    );
+    // [EMBEDDING:GENERATE] Generate embedding for vector search
+    const embedding = await generateEmbedding(params.content);
 
-    logger.info(
-      { keyType: params.keyType, keyName: params.keyName, importance: params.importance },
-      "fact saved to memory index"
-    );
+    // [INSERT:MEMORY_INDEX] Save with or without embedding
+    if (embedding) {
+      await query(
+        `INSERT INTO memory_index (key_type, key_name, summary, importance, tags, embedding)
+         VALUES ($1, $2, $3, $4, $5, $6::vector)`,
+        [
+          params.keyType,
+          params.keyName,
+          params.content,
+          params.importance ?? 5,
+          params.tags ?? [],
+          formatEmbeddingForPg(embedding),
+        ]
+      );
+      logger.info(
+        {
+          keyType: params.keyType,
+          keyName: params.keyName,
+          importance: params.importance,
+          hasEmbedding: true,
+          embeddingDim: embedding.length,
+        },
+        "memory_index_saved_with_embedding"
+      );
+    } else {
+      // Fallback: save without embedding (still searchable via FTS)
+      await query(
+        `INSERT INTO memory_index (key_type, key_name, summary, importance, tags)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [params.keyType, params.keyName, params.content, params.importance ?? 5, params.tags ?? []]
+      );
+      logger.warn(
+        { keyType: params.keyType, keyName: params.keyName },
+        "memory_index_saved_without_embedding"
+      );
+    }
 
     return true;
   } catch (err) {
     logger.error(
       { error: String(err), keyType: params.keyType, keyName: params.keyName },
-      "failed to save to memory index"
+      "failed_to_save_memory_index"
     );
     return false;
   }
