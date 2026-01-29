@@ -1,8 +1,8 @@
 /**
- * Structured logger for founder-memory extension
+ * [LOG:MAIN] Structured logger for aleff-memory extension
  *
- * Uses the main moltbot logger when available, falls back to console with structured format.
- * All log messages include the [founder-memory] prefix for easy filtering.
+ * Outputs JSON to stderr for log aggregation (Grafana Loki, etc.)
+ * Zero console.log - all output via structured JSON.
  */
 
 type LogLevel = "debug" | "info" | "warn" | "error";
@@ -18,8 +18,6 @@ interface StructuredLogger {
   error(ctx: LogContext, message: string): void;
 }
 
-const PREFIX = "[founder-memory]";
-
 /**
  * Format a log entry as structured JSON for log aggregation
  */
@@ -27,8 +25,8 @@ function formatLog(level: LogLevel, ctx: LogContext, message: string): string {
   const entry = {
     timestamp: new Date().toISOString(),
     level,
-    component: "founder-memory",
-    message,
+    plugin: "aleff-memory",
+    event: message,
     ...ctx,
   };
   return JSON.stringify(entry);

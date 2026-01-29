@@ -1,5 +1,5 @@
 /**
- * Knowledge Graph functions for Founder Memory
+ * [KG:MAIN] Knowledge Graph functions for Aleff Memory
  *
  * Manages entities, relationships, and facts in PostgreSQL
  * for long conversations and semantic connections.
@@ -18,8 +18,14 @@ import { logger } from "./logger.js";
 // =============================================================================
 
 export type EntityType = 'person' | 'company' | 'project' | 'concept';
-export type RelationshipType = 'works_at' | 'manages' | 'owns' | 'part_of' | 'knows' | 'related_to';
+export type RelationshipType = 'works_at' | 'manages' | 'owns' | 'part_of' | 'knows' | 'related_to' | 'responsible_for';
 export type FactType = 'preference' | 'decision' | 'observation' | 'skill' | 'status';
+
+// [KG:EXTRACT] Extracted relationship from fact text
+export interface ExtractedRelationship {
+  target: string;
+  type: RelationshipType;
+}
 
 export interface Entity {
   id: string;
@@ -59,6 +65,86 @@ export interface Fact {
 export interface EntityWithRelationships extends Entity {
   outgoing: Array<{ to: string; type: string; strength: number }>;
   incoming: Array<{ from: string; type: string; strength: number }>;
+}
+
+// =============================================================================
+// [KG:EXTRACT] Relationship Extraction from Text
+// =============================================================================
+
+/**
+ * Patterns to extract relationships from fact text
+ * Each pattern maps to a relationship type
+ */
+const RELATIONSHIP_PATTERNS: Array<{ pattern: RegExp; type: RelationshipType }> = [
+  // Role patterns: "é diretor/CTO/CEO/gerente de X"
+  { pattern: /é\s+(?:o\s+)?(?:diretor[a]?|gerente|ceo|cto|cfo|cmo|cpo|cso)\s+(?:d[aoe]|da)\s+(.+)/i, type: 'works_at' },
+  // Works at patterns
+  { pattern: /trabalha\s+(?:na|no|em)\s+(.+)/i, type: 'works_at' },
+  { pattern: /faz\s+parte\s+(?:da|do)\s+(.+)/i, type: 'part_of' },
+  // Responsibility patterns
+  { pattern: /cuida\s+(?:da|do|de)\s+(.+)/i, type: 'responsible_for' },
+  { pattern: /é\s+responsável\s+(?:por|pela|pelo)\s+(.+)/i, type: 'responsible_for' },
+  { pattern: /lidera\s+(?:a|o)?\s*(.+)/i, type: 'manages' },
+  // Ownership patterns
+  { pattern: /é\s+dono\s+(?:da|do)\s+(.+)/i, type: 'owns' },
+  { pattern: /fundou\s+(?:a|o)?\s*(.+)/i, type: 'owns' },
+  // Manages patterns
+  { pattern: /gerencia\s+(?:a|o)?\s*(.+)/i, type: 'manages' },
+  { pattern: /coordena\s+(?:a|o)?\s*(.+)/i, type: 'manages' },
+];
+
+/**
+ * Infer entity type based on name heuristics
+ */
+export function inferEntityType(name: string): EntityType {
+  // ALL CAPS = company/project
+  if (name === name.toUpperCase() && name.length > 2) {
+    return 'company';
+  }
+  // Known company/project indicators
+  if (/holding|base|sales|contratos|ltda|s\.a\.|inc\.|team/i.test(name)) {
+    return 'company';
+  }
+  // Default to person
+  return 'person';
+}
+
+/**
+ * [KG:EXTRACT] Extract relationships from a fact's text
+ *
+ * Parses fact content to identify relationship patterns and extracts
+ * the target entity and relationship type.
+ *
+ * @param fact - The fact text to parse
+ * @param sourceEntityName - Name of the entity the fact is about (to avoid self-relationships)
+ * @returns Array of extracted relationships
+ */
+export function extractRelationships(fact: string, sourceEntityName: string): ExtractedRelationship[] {
+  const results: ExtractedRelationship[] = [];
+
+  for (const { pattern, type } of RELATIONSHIP_PATTERNS) {
+    const match = fact.match(pattern);
+    if (match) {
+      // Get the captured group (target entity)
+      const rawTarget = match[1]?.trim();
+      if (!rawTarget) continue;
+
+      // Clean up target: remove trailing punctuation, quotes
+      const target = rawTarget
+        .replace(/[.,:;!?"']+$/, '')
+        .replace(/^["']|["']$/g, '')
+        .trim();
+
+      // Skip if target is the same as source or too short
+      if (!target || target.length < 2) continue;
+      if (target.toLowerCase() === sourceEntityName.toLowerCase()) continue;
+
+      results.push({ target, type });
+      logger.debug({ source: sourceEntityName, target, type }, "relationship extracted from fact");
+    }
+  }
+
+  return results;
 }
 
 // =============================================================================

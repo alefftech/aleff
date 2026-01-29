@@ -1,0 +1,13 @@
+{
+  "name": "@moltbot/aleff-memory",
+  "version": "2.0.0",
+  "description": "Institutional memory with Knowledge Graph, auto-capture, and auto-recall",
+  "type": "module",
+  "main": "index.ts",
+  "dependencies": {
+    "pg": "^8.17.2"
+  },
+  "peerDependencies": {
+    "moltbot": "*"
+  }
+}

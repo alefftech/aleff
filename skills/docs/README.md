@@ -15,7 +15,7 @@ Skills criadas especificamente para o Aleff, diferentes das 54 skills padrão do
 
 | # | Skill | Status | Tipo | Descrição |
 |---|-------|--------|------|-----------|
-| 1 | **[Founder Memory](founder-memory.md)** | ✅ Ativa | Extension | Memória institucional persistente com knowledge graph |
+| 1 | **[Aleff Memory v2.0](aleff-memory.md)** | ✅ Ativa | Extension | Memória institucional com auto-capture/recall e knowledge graph |
 | 2 | **[MegaAPI WhatsApp](megaapi-whatsapp.md)** | 🔧 Setup | Extension | Integração WhatsApp via MegaAPI brasileira |
 | 3 | **[Remotion Dev](remotion-dev.md)** | ✅ Ativa | Skill | Geração de vídeos programáticos com React |
 | 4 | **[Google Workspace](google-workspace.md)** | ✅ Ativa | Extension | Gmail, Calendar, Drive via gogcli |
@@ -61,7 +61,7 @@ Localização dos arquivos principais
 - Localização: `/extensions/<name>/`
 - Carregado na inicialização
 - Pode registrar tools, hooks, memory slots
-- Exemplos: founder-memory, megaapi-whatsapp
+- Exemplos: aleff-memory, megaapi-whatsapp
 
 ### Skill (Markdown)
 - Arquivo SKILL.md com instruções
@@ -118,7 +118,7 @@ cat /skills/docs/CREATING_CUSTOM_SKILLS.md
 ## 🔍 Por Categoria
 
 ### Memória & Dados
-- [Founder Memory](founder-memory.md) - PostgreSQL + Knowledge Graph
+- [Founder Memory](aleff-memory.md) - PostgreSQL + Knowledge Graph
 
 ### Comunicação
 - [MegaAPI WhatsApp](megaapi-whatsapp.md) - WhatsApp brasileiro

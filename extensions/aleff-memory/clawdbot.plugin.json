@@ -1,7 +1,7 @@
 {
-  "id": "founder-memory",
-  "name": "Founder Memory",
-  "description": "Persistent institutional memory in Supabase for Aleff conversations",
+  "id": "aleff-memory",
+  "name": "Aleff Memory",
+  "description": "Persistent institutional memory with Knowledge Graph, auto-capture, and auto-recall",
   "kind": "memory",
   "configSchema": {
     "type": "object",
@@ -18,7 +18,12 @@
       "autoCapture": {
         "type": "boolean",
         "default": true,
-        "description": "Automatically capture all messages"
+        "description": "Automatically detect and save important information"
+      },
+      "autoRecall": {
+        "type": "boolean",
+        "default": true,
+        "description": "Inject relevant memories before agent processing"
       },
       "schema": {
         "type": "string",

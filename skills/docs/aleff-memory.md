@@ -1,7 +1,7 @@
-# 🧠 Founder Memory
+# 🧠 Aleff Memory v2.0
 
-> **Memória institucional persistente com Knowledge Graph**
-> **Status:** ✅ Ativa desde 2026-01-28
+> **Memória institucional persistente com Knowledge Graph, Auto-Capture e Auto-Recall**
+> **Status:** ✅ Ativa desde 2026-01-28 | **Atualizada:** 2026-01-29
 > **Tipo:** Extension (Plugin TypeScript)
 
 ---
@@ -44,10 +44,11 @@ Sistema de memória persistente que armazena TODAS as conversas do Aleff em Post
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────┐
-│  Founder Memory Extension                               │
-│  - Capture hook (antes de salvar mensagem)              │
-│  - Save hook (depois de salvar)                         │
-│  - Tools: search_memory, add_fact, add_entity           │
+│  Aleff Memory Extension v2.0                            │
+│  - message_received hook (salva inbound)                │
+│  - message_sent hook (salva outbound + auto-capture)    │
+│  - before_agent_start hook (auto-recall)                │
+│  - 7 Tools: save/search/semantic/context/kg/conn/learn  │
 └─────────────────┬───────────────────────────────────────┘
                   │
                   ▼
@@ -210,13 +211,14 @@ Já habilitada em `moltbot.json`:
 {
   "plugins": {
     "slots": {
-      "memory": "founder-memory"
+      "memory": "aleff-memory"
     },
     "entries": {
-      "founder-memory": {
+      "aleff-memory": {
         "enabled": true,
         "config": {
           "autoCapture": true,
+          "autoRecall": true,
           "schema": "aleff"
         }
       }
@@ -310,8 +312,8 @@ SELECT * FROM aleff.conversations WHERE agent_id = 'garagem';
 **Soluções:**
 ```bash
 # 1. Verificar se extension está carregada
-docker logs aleffai | grep "founder-memory"
-# Deve mostrar: "Registered plugin: founder-memory"
+docker logs aleffai 2>&1 | grep "aleff-memory"
+# Deve mostrar: "Aleff Memory v2.0 registered..."
 
 # 2. Verificar conexão com banco
 docker exec aleffai psql postgresql://aleff:aleff_secure_2024@aleff-postgres:5432/aleff_memory -c "SELECT 1"
@@ -367,21 +369,27 @@ UPDATE aleff.conversations SET agent_id = 'aleff' WHERE agent_id IS NULL;
 ## 📂 Código-fonte
 
 ```
-extensions/founder-memory/
+extensions/aleff-memory/
 ├── clawdbot.plugin.json    # Manifest do plugin
-├── index.ts                # Código principal
-├── package.json            # Dependências (pg)
-├── README.md               # Documentação técnica
+├── index.ts                # [PLUGIN:MAIN] Registro + hooks
+├── package.json            # @moltbot/aleff-memory v2.0.0
+├── KNOWLEDGE_GRAPH.md      # Documentação detalhada
 └── src/
-    ├── persist.ts          # Lógica de persistência
-    ├── knowledge-graph.ts  # Entities, relationships, facts
-    └── search.ts           # Busca semântica
+    ├── auto-capture.ts     # [CAPTURE:MAIN] Detecção automática
+    ├── auto-recall.ts      # [RECALL:MAIN] Injeção de contexto
+    ├── embeddings.ts       # OpenAI text-embedding-3-small
+    ├── knowledge-graph.ts  # [KG:MAIN] Entities + extractRelationships
+    ├── logger.ts           # [LOG:MAIN] JSON estruturado (stderr)
+    ├── persist.ts          # Conversas e mensagens
+    ├── postgres.ts         # Connection pool
+    └── tools.ts            # [TOOLS:MAIN] 7 agent tools
 ```
 
 **Arquivos principais:**
-- `index.ts:15-50` - Hooks de capture
-- `persist.ts:1-100` - Salvar conversas
-- `knowledge-graph.ts` - Extrair entidades e relacionamentos
+- `index.ts` - Hooks: message_received, message_sent, before_agent_start
+- `tools.ts:414-520` - learn_fact com extração automática de relationships
+- `auto-capture.ts` - MEMORY_TRIGGERS patterns
+- `auto-recall.ts` - Vector search em 3 fontes
 
 ---
 
@@ -407,27 +415,30 @@ cat backup_20260129.sql | docker exec -i aleff-postgres psql -U aleff aleff_memo
 
 ---
 
-## 🚀 Evolução Futura
+## 🚀 Evolução
 
-**V1 (atual):**
+**V1.0 (2026-01-28):**
 - ✅ Salvar conversas
 - ✅ Knowledge graph básico
 - ✅ Isolamento por agente
 
-**V2 (planejado):**
-- [ ] Vector search (pgvector)
-- [ ] Summarização automática de conversas longas
-- [ ] Timeline visualization
-- [ ] Export para Notion/Obsidian
+**V2.0 (2026-01-29) - ATUAL:**
+- ✅ Vector search (pgvector)
+- ✅ Auto-capture (detecta e salva automaticamente)
+- ✅ Auto-recall (injeta contexto antes do agent)
+- ✅ learn_fact cria relationships automaticamente
+- ✅ Logs estruturados JSON (stderr)
+- ✅ Anchor comments para navegação
 
 **V3 (futuro):**
 - [ ] RAG (Retrieval Augmented Generation)
-- [ ] Detecção automática de padrões
+- [ ] Summarização automática de conversas longas
+- [ ] Timeline visualization
 - [ ] Alertas proativos ("Faz 30 dias que não fala com X")
 
 ---
 
 **Criado:** 2026-01-28
 **Última atualização:** 2026-01-29
-**Autor:** CTO Ronald + Claude Code
-**Versão:** 1.0.0
+**Autor:** CTO Ronald + Claude Opus 4.5
+**Versão:** 2.0.0

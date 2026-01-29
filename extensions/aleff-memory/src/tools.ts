@@ -1,6 +1,20 @@
+/**
+ * [TOOLS:MAIN] Agent tools for Aleff Memory v2.0
+ *
+ * Provides 7 tools for the agent:
+ * - save_to_memory: Save facts/decisions explicitly
+ * - search_memory: Full-text search in conversations
+ * - semantic_search: Vector similarity search
+ * - get_conversation_context: Recent context
+ * - query_knowledge_graph: Entity lookup
+ * - find_connection: Path between entities
+ * - learn_fact: Learn facts + auto-create relationships (FIX v2.0)
+ */
+
 import { type AnyAgentTool, jsonResult } from "../../../src/agents/tools/common.js";
 import { saveToMemoryIndex, searchMessages, getConversationContext, vectorSearch } from "./persist.js";
 import { isPostgresConfigured } from "./postgres.js";
+import { logger } from "./logger.js";
 import {
   upsertEntity,
   findEntity,
@@ -8,13 +22,16 @@ import {
   findConnectionPath,
   addFact,
   getEntityFacts,
+  createRelationship,
+  extractRelationships,
+  inferEntityType,
   type EntityType,
   type RelationshipType,
   type FactType
 } from "./knowledge-graph.js";
 
 // ============================================================================
-// ANCHOR: FOUNDER-MEMORY-TOOLS
+// ANCHOR: ALEFF-MEMORY-TOOLS
 // Tools para memória institucional do Aleff
 //
 // IMPORTANT: Usar "parameters" (não "inputSchema") para compatibilidade com
@@ -28,6 +45,7 @@ import {
 // Bug fixes 2026-01-29:
 // - "Cannot read properties of undefined (reading 'properties')" - use parameters not inputSchema
 // - "Cannot read properties of undefined (reading 'some')" - use jsonResult() for returns
+// - learn_fact now auto-creates relationships from fact text (v2.0 FIX)
 // ============================================================================
 
 // Helper para validar parâmetros obrigatórios
@@ -460,13 +478,18 @@ export function createFindConnectionTool(): AnyAgentTool {
 }
 
 /**
- * Tool for learning new facts about entities
+ * [TOOLS:LEARN_FACT] Tool for learning new facts about entities
+ *
+ * FIX v2.0: Now automatically extracts and creates relationships from fact text.
+ * Before: "Fabio é CFO da Holding" → entity + fact (NO relationship)
+ * After:  "Fabio é CFO da Holding" → entity + fact + relationship(Fabio → works_at → Holding)
  */
 export function createLearnFactTool(): AnyAgentTool {
   return {
     name: "learn_fact",
     description:
       "Aprende um novo fato sobre uma entidade (pessoa, empresa, projeto). " +
+      "Automaticamente cria relacionamentos quando detectados no texto. " +
       "Use quando o Founder compartilhar informações importantes que devem ser lembradas.",
     parameters: {
       type: "object",
@@ -515,16 +538,12 @@ export function createLearnFactTool(): AnyAgentTool {
         });
       }
 
-      // Try to find entity, create if doesn't exist
+      // 1. Find or create the main entity
       let entity = await findEntity(params.about);
       if (!entity) {
-        // Infer entity type (basic heuristics)
-        const type: EntityType = params.about.toUpperCase() === params.about
-          ? "company"
-          : "person";
-
+        const entityType = inferEntityType(params.about);
         entity = await upsertEntity({
-          type,
+          type: entityType,
           name: params.about,
         });
 
@@ -534,26 +553,67 @@ export function createLearnFactTool(): AnyAgentTool {
             error: `Failed to create entity "${params.about}"`,
           });
         }
+        logger.info({ name: params.about, type: entityType }, "entity_created");
       }
 
-      const fact = await addFact({
+      // 2. Save the fact
+      const factRecord = await addFact({
         entity: params.about,
         type: params.type,
         content: params.fact,
         confidence: params.confidence,
       });
 
-      if (!fact) {
+      if (!factRecord) {
         return jsonResult({
           success: false,
           error: "Failed to save fact",
         });
       }
 
+      // 3. [FIX v2.0] Extract and create relationships from fact text
+      const extractedRels = extractRelationships(params.fact, params.about);
+      let relationshipsCreated = 0;
+
+      for (const rel of extractedRels) {
+        // Find or create the related entity
+        let relatedEntity = await findEntity(rel.target);
+        if (!relatedEntity) {
+          const relatedType = inferEntityType(rel.target);
+          relatedEntity = await upsertEntity({
+            type: relatedType,
+            name: rel.target,
+          });
+          if (relatedEntity) {
+            logger.info({ name: rel.target, type: relatedType }, "related_entity_created");
+          }
+        }
+
+        if (relatedEntity) {
+          // Create the relationship
+          const relationship = await createRelationship({
+            from: params.about,
+            to: rel.target,
+            type: rel.type,
+            strength: params.confidence ?? 0.9,
+          });
+
+          if (relationship) {
+            relationshipsCreated++;
+            logger.info(
+              { from: params.about, to: rel.target, type: rel.type },
+              "relationship_created"
+            );
+          }
+        }
+      }
+
       return jsonResult({
         success: true,
         message: `Aprendi: ${params.about} → [${params.type}] ${params.fact}`,
-        fact_id: fact.id,
+        fact_id: factRecord.id,
+        relationships_created: relationshipsCreated,
+        relationships: extractedRels.map(r => `${params.about} → ${r.type} → ${r.target}`),
       });
     },
   };
