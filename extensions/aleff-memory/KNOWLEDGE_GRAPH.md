@@ -249,31 +249,163 @@ DELETE FROM relationships WHERE strength < 0.3;
 
 ---
 
-## 📦 **Upgrade Path**
+## 📦 **Upgrade Path → aleff-memory-pro**
 
-### **Adicionar mem0 (futuro):**
-Criar adapter que usa mem0 como camada de abstração:
-```typescript
-class Mem0Adapter {
-  async upsertEntity(data) {
-    return await this.mem0.add({ type: 'entity', ...data });
-  }
-}
+### **Roadmap de Evolução**
+
+```
+aleff-memory v1.0 (2026-01-28)
+    │   └── PostgreSQL + pgvector básico
+    │
+    ▼
+aleff-memory v2.0 (2026-01-29) ← ATUAL
+    │   └── Auto-capture, auto-recall, relationship extraction
+    │
+    ▼
+aleff-memory-pro v3.0 (futuro)
+    │   └── mem0 + Qdrant/Neo4j + RAG avançado
+    │
+    ▼
+aleff-memory-pro v4.0 (futuro)
+        └── Multi-agent memory sharing + temporal reasoning
 ```
 
-### **Adicionar Neo4j (futuro):**
-Migrar relacionamentos para Neo4j se queries ficarem lentas:
+---
+
+### **aleff-memory-pro: O Que É**
+
+Evolução para **mem0** (https://mem0.ai) como backend de memória, trazendo:
+
+| Feature | aleff-memory v2 | aleff-memory-pro |
+|---------|-----------------|------------------|
+| Vector DB | pgvector | **Qdrant** (mais rápido) |
+| Graph DB | PostgreSQL tables | **Neo4j** (queries complexas) |
+| Memory API | Custom tools | **mem0 SDK** (padronizado) |
+| Extraction | Regex patterns | **LLM-based** (mais preciso) |
+| Deduplication | Manual | **Automático** |
+| Temporal | valid_from/to | **Temporal reasoning** |
+| Multi-agent | Isolado por agent_id | **Memory sharing** seletivo |
+
+---
+
+### **Por Que mem0?**
+
+1. **Extração inteligente**: Usa LLM para extrair entidades/fatos (não regex)
+2. **Deduplicação**: "Ronald é CTO" + "Ronald é o CTO da holding" = 1 fato
+3. **Conflito de fatos**: Detecta e resolve contradições
+4. **API padronizada**: `mem0.add()`, `mem0.search()`, `mem0.get_all()`
+5. **Multi-modal**: Suporta imagens, áudio (futuro)
+
+---
+
+### **Arquitetura aleff-memory-pro**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Aleff Agent                                                 │
+│  └── Mesmas 7 tools (compatível)                            │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│  aleff-memory-pro Adapter                                    │
+│  ├── mem0 SDK (extraction, dedup, search)                   │
+│  ├── Qdrant (vector similarity)                             │
+│  └── Neo4j (graph traversal)                                │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+        ┌─────────────┼─────────────┐
+        ▼             ▼             ▼
+   ┌─────────┐  ┌──────────┐  ┌──────────┐
+   │ Qdrant  │  │  Neo4j   │  │ Postgres │
+   │ vectors │  │  graph   │  │ messages │
+   └─────────┘  └──────────┘  └──────────┘
+```
+
+---
+
+### **Migração v2 → Pro**
+
 ```typescript
-class Neo4jAdapter {
-  async createRelationship(data) {
-    await session.run(
-      `MATCH (a:Entity {id: $from}), (b:Entity {id: $to})
-       CREATE (a)-[:${data.type}]->(b)`,
-      { from: data.from, to: data.to }
+// aleff-memory-pro/src/adapter.ts
+
+import { Memory } from 'mem0ai';
+
+class AleffMemoryProAdapter {
+  private mem0: Memory;
+
+  constructor() {
+    this.mem0 = new Memory({
+      vector_store: {
+        provider: "qdrant",
+        config: { url: process.env.QDRANT_URL }
+      },
+      graph_store: {
+        provider: "neo4j",
+        config: { url: process.env.NEO4J_URL }
+      },
+      llm: {
+        provider: "anthropic",
+        config: { model: "claude-sonnet-4-5" }
+      }
+    });
+  }
+
+  // Compatível com tools existentes
+  async learnFact(about: string, fact: string) {
+    // mem0 extrai entidades e relationships automaticamente
+    return await this.mem0.add(
+      `${about}: ${fact}`,
+      user_id: "founder",
+      metadata: { source: "conversation" }
     );
   }
+
+  async search(query: string) {
+    return await this.mem0.search(query, user_id: "founder");
+  }
+
+  async getEntityGraph(entity: string) {
+    // Neo4j para queries de grafo complexas
+    return await this.neo4j.run(`
+      MATCH (e:Entity {name: $name})-[r*1..3]-(related)
+      RETURN e, r, related
+    `, { name: entity });
+  }
 }
 ```
+
+---
+
+### **Timeline Estimado**
+
+| Fase | Entrega | Descrição |
+|------|---------|-----------|
+| **v2.0** | ✅ 2026-01-29 | Auto-capture, auto-recall, relationships |
+| **v2.1** | Q1 2026 | Melhorar patterns de extração |
+| **v3.0-alpha** | Q2 2026 | mem0 SDK integrado (Qdrant local) |
+| **v3.0** | Q3 2026 | Neo4j para graph, production-ready |
+| **v4.0** | 2027 | Multi-agent memory, temporal reasoning |
+
+---
+
+### **Critérios para Migrar**
+
+Migrar para aleff-memory-pro quando:
+
+```
+□ > 10k entities no grafo (pgvector fica lento)
+□ > 100k messages (precisa de sharding)
+□ Queries de grafo complexas (3+ hops frequentes)
+□ Múltiplos agentes precisam compartilhar memória
+□ Extração por regex não é precisa o suficiente
+```
+
+**Enquanto isso:** aleff-memory v2.0 é suficiente para:
+- < 10k entities
+- < 100k messages
+- Queries simples de grafo
+- Extração de padrões conhecidos (cargos, empresas)
 
 ---
 

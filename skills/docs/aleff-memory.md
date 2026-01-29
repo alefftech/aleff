@@ -430,11 +430,27 @@ cat backup_20260129.sql | docker exec -i aleff-postgres psql -U aleff aleff_memo
 - ✅ Logs estruturados JSON (stderr)
 - ✅ Anchor comments para navegação
 
-**V3 (futuro):**
+**V3.0 - aleff-memory-pro (futuro):**
+- [ ] **mem0 SDK** - Extração inteligente via LLM (não regex)
+- [ ] **Qdrant** - Vector DB mais rápido que pgvector
+- [ ] **Neo4j** - Graph DB para queries complexas
+- [ ] Deduplicação automática de fatos
+- [ ] Detecção de conflitos/contradições
 - [ ] RAG (Retrieval Augmented Generation)
-- [ ] Summarização automática de conversas longas
-- [ ] Timeline visualization
+
+**V4.0 - aleff-memory-pro (futuro):**
+- [ ] Multi-agent memory sharing seletivo
+- [ ] Temporal reasoning (evolução de fatos no tempo)
 - [ ] Alertas proativos ("Faz 30 dias que não fala com X")
+- [ ] Summarização automática de conversas longas
+
+**Quando migrar para aleff-memory-pro?**
+- > 10k entities no grafo
+- > 100k messages
+- Queries de grafo complexas (3+ hops)
+- Extração por regex não é precisa o suficiente
+
+📚 Ver detalhes técnicos em: [KNOWLEDGE_GRAPH.md](../../extensions/aleff-memory/KNOWLEDGE_GRAPH.md)
 
 ---
 
