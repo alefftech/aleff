@@ -1,4 +1,4 @@
-import type { AnyAgentTool } from "../../../src/agents/tools/common.js";
+import { type AnyAgentTool, jsonResult } from "../../../src/agents/tools/common.js";
 import { saveToMemoryIndex, searchMessages, getConversationContext, vectorSearch } from "./persist.js";
 import { isPostgresConfigured } from "./postgres.js";
 import {
@@ -19,8 +19,15 @@ import {
 //
 // IMPORTANT: Usar "parameters" (não "inputSchema") para compatibilidade com
 // @mariozechner/pi-ai que espera tool.parameters.properties
-// Bug fix: 2026-01-29 - "Cannot read properties of undefined (reading 'properties')"
-// Bug fix: 2026-01-29 - Added defensive param validation to prevent undefined errors
+//
+// IMPORTANT: Tool execute signature must match pi-tool-definition-adapter:
+// execute(toolCallId: string, params: T, signal?: AbortSignal, onUpdate?: callback)
+//
+// IMPORTANT: Tool results MUST use jsonResult() to format correctly for pi-ai
+//
+// Bug fixes 2026-01-29:
+// - "Cannot read properties of undefined (reading 'properties')" - use parameters not inputSchema
+// - "Cannot read properties of undefined (reading 'some')" - use jsonResult() for returns
 // ============================================================================
 
 // Helper para validar parâmetros obrigatórios
@@ -35,10 +42,6 @@ function validateRequiredParams<T extends Record<string, unknown>>(
   }
   return { valid: true };
 }
-
-// IMPORTANT: Tool execute signature must match pi-tool-definition-adapter expectations:
-// execute(toolCallId: string, params: T, signal?: AbortSignal, onUpdate?: callback)
-// The adapter passes 4 args, so we need to accept them even if we don't use all.
 
 /**
  * Tool for agent to explicitly save important information to memory
@@ -92,14 +95,14 @@ export function createSaveToMemoryTool(): AnyAgentTool {
       // Defensive validation
       const validation = validateRequiredParams(params ?? {}, ["content", "category", "name"]);
       if (!validation.valid) {
-        return { success: false, error: validation.error };
+        return jsonResult({ success: false, error: validation.error });
       }
 
       if (!isPostgresConfigured()) {
-        return {
+        return jsonResult({
           success: false,
           error: "PostgreSQL not configured. Set DATABASE_URL or POSTGRES_* env vars.",
-        };
+        });
       }
 
       const saved = await saveToMemoryIndex({
@@ -111,16 +114,16 @@ export function createSaveToMemoryTool(): AnyAgentTool {
       });
 
       if (saved) {
-        return {
+        return jsonResult({
           success: true,
           message: `Salvo na memoria: [${params.category}] ${params.name}`,
-        };
+        });
       }
 
-      return {
+      return jsonResult({
         success: false,
         error: "Failed to save to memory",
-      };
+      });
     },
   };
 }
@@ -154,15 +157,15 @@ export function createSearchMemoryTool(): AnyAgentTool {
       // Defensive validation
       const validation = validateRequiredParams(params ?? {}, ["query"]);
       if (!validation.valid) {
-        return { success: false, error: validation.error, memories: [] };
+        return jsonResult({ success: false, error: validation.error, memories: [] });
       }
 
       if (!isPostgresConfigured()) {
-        return {
+        return jsonResult({
           success: false,
           error: "PostgreSQL not configured. Set DATABASE_URL or POSTGRES_* env vars.",
           memories: [],
-        };
+        });
       }
 
       const results = await searchMessages({
@@ -170,7 +173,7 @@ export function createSearchMemoryTool(): AnyAgentTool {
         limit: params.limit ?? 10,
       });
 
-      return {
+      return jsonResult({
         success: true,
         count: results.length,
         memories: results.map((m) => ({
@@ -178,7 +181,7 @@ export function createSearchMemoryTool(): AnyAgentTool {
           content: m.content,
           timestamp: m.created_at,
         })),
-      };
+      });
     },
   };
 }
@@ -219,15 +222,15 @@ export function createVectorSearchTool(): AnyAgentTool {
       // Defensive validation
       const validation = validateRequiredParams(params ?? {}, ["query"]);
       if (!validation.valid) {
-        return { success: false, error: validation.error, memories: [] };
+        return jsonResult({ success: false, error: validation.error, memories: [] });
       }
 
       if (!isPostgresConfigured()) {
-        return {
+        return jsonResult({
           success: false,
           error: "PostgreSQL not configured. Set DATABASE_URL or POSTGRES_* env vars.",
           memories: [],
-        };
+        });
       }
 
       const results = await vectorSearch({
@@ -236,7 +239,7 @@ export function createVectorSearchTool(): AnyAgentTool {
         threshold: params.threshold ?? 0.7,
       });
 
-      return {
+      return jsonResult({
         success: true,
         count: results.length,
         method: results.length > 0 && results[0].similarity > 0 ? "vector" : "fallback_fts",
@@ -246,7 +249,7 @@ export function createVectorSearchTool(): AnyAgentTool {
           timestamp: m.created_at,
           similarity: m.similarity,
         })),
-      };
+      });
     },
   };
 }
@@ -279,11 +282,11 @@ export function createGetContextTool(): AnyAgentTool {
       ctx?: { sessionKey?: string; messageChannel?: string },
     ) {
       if (!isPostgresConfigured()) {
-        return {
+        return jsonResult({
           success: false,
           error: "PostgreSQL not configured",
           messages: [],
-        };
+        });
       }
 
       // Extract user ID from session key if available
@@ -293,10 +296,10 @@ export function createGetContextTool(): AnyAgentTool {
       const messages = await getConversationContext({
         userId,
         channel,
-        limit: params.limit ?? 20,
+        limit: params?.limit ?? 20,
       });
 
-      return {
+      return jsonResult({
         success: true,
         count: messages.length,
         messages: messages.map((m) => ({
@@ -304,7 +307,7 @@ export function createGetContextTool(): AnyAgentTool {
           content: m.content,
           timestamp: m.created_at,
         })),
-      };
+      });
     },
   };
 }
@@ -336,27 +339,27 @@ export function createKnowledgeGraphTool(): AnyAgentTool {
       // Defensive validation
       const validation = validateRequiredParams(params ?? {}, ["entity"]);
       if (!validation.valid) {
-        return { success: false, error: validation.error };
+        return jsonResult({ success: false, error: validation.error });
       }
 
       if (!isPostgresConfigured()) {
-        return {
+        return jsonResult({
           success: false,
           error: "PostgreSQL not configured",
-        };
+        });
       }
 
       const entity = await findEntity(params.entity);
       if (!entity) {
-        return {
+        return jsonResult({
           success: false,
           message: `Entidade "${params.entity}" não encontrada no grafo`,
-        };
+        });
       }
 
       const { outgoing, incoming } = await getEntityRelationships(params.entity);
 
-      const result: any = {
+      const result: Record<string, unknown> = {
         success: true,
         entity: {
           name: entity.name,
@@ -378,7 +381,7 @@ export function createKnowledgeGraphTool(): AnyAgentTool {
         }));
       }
 
-      return result;
+      return jsonResult(result);
     },
   };
 }
@@ -410,14 +413,14 @@ export function createFindConnectionTool(): AnyAgentTool {
       // Defensive validation
       const validation = validateRequiredParams(params ?? {}, ["from", "to"]);
       if (!validation.valid) {
-        return { success: false, error: validation.error };
+        return jsonResult({ success: false, error: validation.error });
       }
 
       if (!isPostgresConfigured()) {
-        return {
+        return jsonResult({
           success: false,
           error: "PostgreSQL not configured",
-        };
+        });
       }
 
       const result = await findConnectionPath({
@@ -427,11 +430,11 @@ export function createFindConnectionTool(): AnyAgentTool {
       });
 
       if (!result || !result.found) {
-        return {
+        return jsonResult({
           success: true,
           found: false,
           message: `Nenhuma conexão encontrada entre "${params.from}" e "${params.to}"`,
-        };
+        });
       }
 
       // Format path nicely
@@ -442,7 +445,7 @@ export function createFindConnectionTool(): AnyAgentTool {
         })
         .join("");
 
-      return {
+      return jsonResult({
         success: true,
         found: true,
         path: pathStr,
@@ -451,7 +454,7 @@ export function createFindConnectionTool(): AnyAgentTool {
           entities: result.path!.entities,
           relationships: result.path!.relationships,
         },
-      };
+      });
     },
   };
 }
@@ -499,17 +502,17 @@ export function createLearnFactTool(): AnyAgentTool {
         confidence?: number;
       }
     ) {
-      // Defensive validation - this was causing "Cannot read properties of undefined (reading 'toUpperCase')"
+      // Defensive validation
       const validation = validateRequiredParams(params ?? {}, ["about", "type", "fact"]);
       if (!validation.valid) {
-        return { success: false, error: validation.error };
+        return jsonResult({ success: false, error: validation.error });
       }
 
       if (!isPostgresConfigured()) {
-        return {
+        return jsonResult({
           success: false,
           error: "PostgreSQL not configured",
-        };
+        });
       }
 
       // Try to find entity, create if doesn't exist
@@ -526,10 +529,10 @@ export function createLearnFactTool(): AnyAgentTool {
         });
 
         if (!entity) {
-          return {
+          return jsonResult({
             success: false,
             error: `Failed to create entity "${params.about}"`,
-          };
+          });
         }
       }
 
@@ -541,17 +544,17 @@ export function createLearnFactTool(): AnyAgentTool {
       });
 
       if (!fact) {
-        return {
+        return jsonResult({
           success: false,
           error: "Failed to save fact",
-        };
+        });
       }
 
-      return {
+      return jsonResult({
         success: true,
         message: `Aprendi: ${params.about} → [${params.type}] ${params.fact}`,
         fact_id: fact.id,
-      };
+      });
     },
   };
 }
