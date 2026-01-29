@@ -1,4 +1,12 @@
+/**
+ * PostgreSQL connection pool for Founder Memory
+ *
+ * Supports configuration via DATABASE_URL or individual POSTGRES_* env vars.
+ * Uses connection pooling with sensible defaults for long-running services.
+ */
+
 import pg from "pg";
+import { logger } from "./logger.js";
 
 const { Pool } = pg;
 
@@ -42,7 +50,7 @@ export function getPool(): pg.Pool | null {
 
   // Handle pool errors
   pool.on("error", (err) => {
-    console.error("[founder-memory] Postgres pool error:", err.message);
+    logger.error({ error: err.message }, "postgres pool error");
   });
 
   return pool;

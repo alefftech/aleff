@@ -2,10 +2,16 @@
  * Knowledge Graph functions for Founder Memory
  *
  * Manages entities, relationships, and facts in PostgreSQL
- * for long conversations and semantic connections
+ * for long conversations and semantic connections.
+ *
+ * The knowledge graph stores:
+ *   - Entities: people, companies, projects, concepts
+ *   - Relationships: connections between entities (works_at, manages, etc.)
+ *   - Facts: time-bound knowledge about entities
  */
 
 import { query, queryOne, isPostgresConfigured } from "./postgres.js";
+import { logger } from "./logger.js";
 
 // =============================================================================
 // Types
@@ -92,7 +98,7 @@ export async function upsertEntity(params: {
     );
     return result;
   } catch (err) {
-    console.error('[knowledge-graph] Failed to upsert entity:', err);
+    logger.error({ error: String(err), name: params.name, type: params.type }, "failed to upsert entity");
     return null;
   }
 }
@@ -109,7 +115,7 @@ export async function findEntity(name: string): Promise<Entity | null> {
       [name]
     );
   } catch (err) {
-    console.error('[knowledge-graph] Failed to find entity:', err);
+    logger.error({ error: String(err), name }, "failed to find entity");
     return null;
   }
 }
@@ -134,7 +140,7 @@ export async function searchEntities(params: {
       [embeddingStr, threshold, limit]
     );
   } catch (err) {
-    console.error('[knowledge-graph] Failed to search entities:', err);
+    logger.error({ error: String(err), threshold, limit }, "failed to search entities");
     return [];
   }
 }
@@ -161,7 +167,7 @@ export async function createRelationship(params: {
     const toEntity = await findEntity(params.to);
 
     if (!fromEntity || !toEntity) {
-      console.warn('[knowledge-graph] Cannot create relationship: entity not found');
+      logger.warn({ from: params.from, to: params.to }, "cannot create relationship: entity not found");
       return null;
     }
 
@@ -184,7 +190,7 @@ export async function createRelationship(params: {
     );
     return result;
   } catch (err) {
-    console.error('[knowledge-graph] Failed to create relationship:', err);
+    logger.error({ error: String(err), from: params.from, to: params.to, type: params.type }, "failed to create relationship");
     return null;
   }
 }
@@ -235,7 +241,7 @@ export async function getEntityRelationships(entityName: string): Promise<{
 
     return { entity, outgoing, incoming };
   } catch (err) {
-    console.error('[knowledge-graph] Failed to get relationships:', err);
+    logger.error({ error: String(err), entityName }, "failed to get relationships");
     return { entity: null, outgoing: [], incoming: [] };
   }
 }
@@ -287,7 +293,7 @@ export async function findConnectionPath(params: {
       }
     };
   } catch (err) {
-    console.error('[knowledge-graph] Failed to find connection path:', err);
+    logger.error({ error: String(err), from: params.from, to: params.to }, "failed to find connection path");
     return { found: false };
   }
 }
@@ -313,7 +319,7 @@ export async function addFact(params: {
   try {
     const entity = await findEntity(params.entity);
     if (!entity) {
-      console.warn('[knowledge-graph] Cannot add fact: entity not found');
+      logger.warn({ entity: params.entity }, "cannot add fact: entity not found");
       return null;
     }
 
@@ -333,7 +339,7 @@ export async function addFact(params: {
     );
     return result;
   } catch (err) {
-    console.error('[knowledge-graph] Failed to add fact:', err);
+    logger.error({ error: String(err), entity: params.entity, type: params.type }, "failed to add fact");
     return null;
   }
 }
@@ -358,7 +364,7 @@ export async function searchFacts(params: {
       [embeddingStr, threshold, limit]
     );
   } catch (err) {
-    console.error('[knowledge-graph] Failed to search facts:', err);
+    logger.error({ error: String(err), threshold, limit }, "failed to search facts");
     return [];
   }
 }
@@ -406,7 +412,7 @@ export async function getEntityFacts(entityName: string, params?: {
 
     return await query<Fact>(sql, queryParams);
   } catch (err) {
-    console.error('[knowledge-graph] Failed to get entity facts:', err);
+    logger.error({ error: String(err), entityName }, "failed to get entity facts");
     return [];
   }
 }
