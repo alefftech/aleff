@@ -53,8 +53,11 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-aleff_local_2026}
       - POSTGRES_DB=aleff_memory
       - DATABASE_URL=postgresql://aleff:${POSTGRES_PASSWORD:-aleff_local_2026}@postgres:5432/aleff_memory
+      # Google OAuth for gog CLI
+      - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD:-aleff2026secure}
     volumes:
       - ./data:/home/node/.moltbot:rw
+      - ./gogcli:/home/node/.config/gogcli:rw
     logging:
       driver: json-file
       options:
