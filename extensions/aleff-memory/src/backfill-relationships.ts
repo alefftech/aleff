@@ -12,6 +12,9 @@
  *   npx tsx extensions/aleff-memory/src/backfill-relationships.ts
  *   OR
  *   docker exec aleffai node dist/extensions/aleff-memory/src/backfill-relationships.js
+ *
+ * @version 2.1.0
+ * @updated 2026-01-29
  */
 
 import { query } from "./postgres.js";
@@ -24,6 +27,10 @@ import {
 } from "./knowledge-graph.js";
 import { generateEmbedding } from "./embeddings.js";
 import { logger } from "./logger.js";
+
+// =============================================================================
+// [BACKFILL:TYPES] Type definitions
+// =============================================================================
 
 interface FactRow {
   id: string;
@@ -39,6 +46,10 @@ interface BackfillStats {
   errors: number;
 }
 
+// =============================================================================
+// [BACKFILL:MAIN] Main backfill function
+// =============================================================================
+
 async function backfillRelationships(): Promise<BackfillStats> {
   const stats: BackfillStats = {
     factsProcessed: 0,
@@ -47,11 +58,9 @@ async function backfillRelationships(): Promise<BackfillStats> {
     errors: 0,
   };
 
-  console.log("=" .repeat(60));
-  console.log("BACKFILL RELATIONSHIPS - Starting");
-  console.log("=".repeat(60));
+  logger.info({ action: "backfill_start" }, "backfill_relationships_starting");
 
-  // 1. Get all facts with their entity names
+  // [QUERY:FACTS] Get all facts with their entity names
   const facts = await query<FactRow>(`
     SELECT
       f.id,
@@ -64,30 +73,37 @@ async function backfillRelationships(): Promise<BackfillStats> {
     ORDER BY f.created_at ASC
   `);
 
-  console.log(`\nFound ${facts.length} facts to process\n`);
+  logger.info({ factsFound: facts.length }, "facts_loaded_for_backfill");
 
   if (facts.length === 0) {
-    console.log("No facts to process. Exiting.");
+    logger.info({ action: "backfill_complete" }, "no_facts_to_process");
     return stats;
   }
 
-  // 2. Process each fact
+  // [PROCESS:FACTS] Process each fact
   for (const fact of facts) {
     stats.factsProcessed++;
 
     try {
-      // Extract relationships from fact content
+      // [EXTRACT:RELATIONSHIPS] Extract relationships from fact content
       const extractedRels = extractRelationships(fact.content, fact.entity_name);
 
       if (extractedRels.length === 0) {
-        console.log(`⚪ [${stats.factsProcessed}/${facts.length}] "${fact.entity_name}": "${fact.content.slice(0, 50)}..." (no relationships detected)`);
+        logger.debug(
+          {
+            factId: fact.id,
+            entityName: fact.entity_name,
+            contentPreview: fact.content.slice(0, 50),
+          },
+          "no_relationships_detected"
+        );
         stats.relationshipsSkipped++;
         continue;
       }
 
-      // Create each relationship
+      // [CREATE:RELATIONSHIPS] Create each relationship
       for (const rel of extractedRels) {
-        // Find or create related entity
+        // [FIND_OR_CREATE:ENTITY] Find or create related entity
         let relatedEntity = await findEntity(rel.target);
         if (!relatedEntity) {
           const relatedType = inferEntityType(rel.target);
@@ -100,12 +116,15 @@ async function backfillRelationships(): Promise<BackfillStats> {
         }
 
         if (!relatedEntity) {
-          console.log(`✗ Failed to create entity: ${rel.target}`);
+          logger.error(
+            { target: rel.target, factId: fact.id },
+            "failed_to_create_entity"
+          );
           stats.errors++;
           continue;
         }
 
-        // Create relationship (will upsert if exists)
+        // [CREATE:RELATIONSHIP] Create relationship (will upsert if exists)
         const relationship = await createRelationship({
           from: fact.entity_name,
           to: rel.target,
@@ -114,49 +133,66 @@ async function backfillRelationships(): Promise<BackfillStats> {
         });
 
         if (relationship) {
-          console.log(`✓ [${stats.factsProcessed}/${facts.length}] "${fact.entity_name}" --[${rel.type}]--> "${rel.target}"`);
+          logger.info(
+            {
+              from: fact.entity_name,
+              to: rel.target,
+              type: rel.type,
+              progress: `${stats.factsProcessed}/${facts.length}`,
+            },
+            "relationship_created"
+          );
           stats.relationshipsCreated++;
         } else {
-          console.log(`✗ Failed to create relationship: ${fact.entity_name} -> ${rel.target}`);
+          logger.error(
+            { from: fact.entity_name, to: rel.target, type: rel.type },
+            "failed_to_create_relationship"
+          );
           stats.errors++;
         }
       }
     } catch (err) {
-      console.error(`✗ Error processing fact ${fact.id}: ${err}`);
+      logger.error(
+        { factId: fact.id, error: String(err) },
+        "error_processing_fact"
+      );
       stats.errors++;
     }
   }
 
-  // 3. Final stats
-  console.log("\n" + "=".repeat(60));
-  console.log("BACKFILL COMPLETE");
-  console.log("=".repeat(60));
-
+  // [STATS:FINAL] Log final statistics
   const totalRelationships = await query<{ count: number }>(`
     SELECT COUNT(*) as count FROM relationships
   `);
 
-  console.log("\nFinal state:");
-  console.log(`  Total relationships: ${totalRelationships[0]?.count || 0}`);
-  console.log("\nSummary:");
-  console.log(`  Facts processed: ${stats.factsProcessed}`);
-  console.log(`  Relationships created: ${stats.relationshipsCreated}`);
-  console.log(`  Relationships skipped (no pattern): ${stats.relationshipsSkipped}`);
-  console.log(`  Errors: ${stats.errors}`);
+  logger.info(
+    {
+      action: "backfill_complete",
+      totalRelationships: totalRelationships[0]?.count || 0,
+      factsProcessed: stats.factsProcessed,
+      relationshipsCreated: stats.relationshipsCreated,
+      relationshipsSkipped: stats.relationshipsSkipped,
+      errors: stats.errors,
+    },
+    "backfill_relationships_completed"
+  );
 
   return stats;
 }
 
-// Run if called directly
+// =============================================================================
+// [BACKFILL:RUN] Run if called directly
+// =============================================================================
+
 const isMainModule = import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   backfillRelationships()
     .then(stats => {
-      console.log("\nBackfill finished successfully");
+      logger.info({ stats }, "backfill_finished_successfully");
       process.exit(0);
     })
     .catch(err => {
-      console.error("Backfill failed:", err);
+      logger.error({ error: String(err) }, "backfill_failed");
       process.exit(1);
     });
 }

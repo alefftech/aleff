@@ -1,5 +1,5 @@
 /**
- * [BACKFILL:MAIN] Backfill embeddings for existing entities and facts
+ * [BACKFILL:EMBEDDINGS] Backfill embeddings for existing entities and facts
  *
  * Safe script that:
  * 1. Queries records without embeddings
@@ -11,11 +11,18 @@
  *   npx tsx extensions/aleff-memory/src/backfill-embeddings.ts
  *   OR
  *   docker exec aleffai node dist/extensions/aleff-memory/src/backfill-embeddings.js
+ *
+ * @version 2.1.0
+ * @updated 2026-01-29
  */
 
 import { query, queryOne } from "./postgres.js";
 import { generateEmbedding, formatEmbeddingForPg } from "./embeddings.js";
 import { logger } from "./logger.js";
+
+// =============================================================================
+// [BACKFILL:CONFIG] Configuration
+// =============================================================================
 
 // Rate limiting: wait between API calls to avoid hitting OpenAI limits
 const DELAY_MS = 200;
@@ -24,10 +31,18 @@ async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// =============================================================================
+// [BACKFILL:TYPES] Type definitions
+// =============================================================================
+
 interface BackfillStats {
   entities: { total: number; updated: number; errors: number };
   facts: { total: number; updated: number; errors: number };
 }
+
+// =============================================================================
+// [BACKFILL:ENTITIES] Backfill embeddings for entities
+// =============================================================================
 
 /**
  * Backfill embeddings for entities without them
@@ -36,12 +51,15 @@ async function backfillEntities(): Promise<{ updated: number; errors: number }> 
   let updated = 0;
   let errors = 0;
 
-  // Get entities without embeddings
+  // [QUERY:ENTITIES] Get entities without embeddings
   const entities = await query<{ id: string; name: string }>(
     `SELECT id, name FROM entities WHERE embedding IS NULL`
   );
 
-  console.log(`Found ${entities.length} entities without embeddings`);
+  logger.info(
+    { entitiesWithoutEmbeddings: entities.length },
+    "backfill_entities_starting"
+  );
 
   for (const entity of entities) {
     try {
@@ -53,21 +71,35 @@ async function backfillEntities(): Promise<{ updated: number; errors: number }> 
           [formatEmbeddingForPg(embedding), entity.id]
         );
         updated++;
-        console.log(`✓ Entity: ${entity.name}`);
+        logger.info(
+          { entityId: entity.id, entityName: entity.name },
+          "entity_embedding_updated"
+        );
       } else {
-        console.log(`✗ Entity: ${entity.name} (no embedding generated)`);
+        logger.warn(
+          { entityId: entity.id, entityName: entity.name },
+          "entity_embedding_generation_failed"
+        );
         errors++;
       }
 
       await sleep(DELAY_MS);
     } catch (err) {
-      console.error(`✗ Entity: ${entity.name} - Error: ${err}`);
+      logger.error(
+        { entityId: entity.id, entityName: entity.name, error: String(err) },
+        "entity_backfill_error"
+      );
       errors++;
     }
   }
 
+  logger.info({ updated, errors }, "backfill_entities_completed");
   return { updated, errors };
 }
+
+// =============================================================================
+// [BACKFILL:FACTS] Backfill embeddings for facts
+// =============================================================================
 
 /**
  * Backfill embeddings for facts without them
@@ -76,12 +108,15 @@ async function backfillFacts(): Promise<{ updated: number; errors: number }> {
   let updated = 0;
   let errors = 0;
 
-  // Get facts without embeddings
+  // [QUERY:FACTS] Get facts without embeddings
   const facts = await query<{ id: string; content: string }>(
     `SELECT id, content FROM facts WHERE embedding IS NULL`
   );
 
-  console.log(`Found ${facts.length} facts without embeddings`);
+  logger.info(
+    { factsWithoutEmbeddings: facts.length },
+    "backfill_facts_starting"
+  );
 
   for (const fact of facts) {
     try {
@@ -93,92 +128,126 @@ async function backfillFacts(): Promise<{ updated: number; errors: number }> {
           [formatEmbeddingForPg(embedding), fact.id]
         );
         updated++;
-        console.log(`✓ Fact: ${fact.content.slice(0, 50)}...`);
+        logger.info(
+          { factId: fact.id, contentPreview: fact.content.slice(0, 50) },
+          "fact_embedding_updated"
+        );
       } else {
-        console.log(`✗ Fact: ${fact.content.slice(0, 50)}... (no embedding generated)`);
+        logger.warn(
+          { factId: fact.id, contentPreview: fact.content.slice(0, 50) },
+          "fact_embedding_generation_failed"
+        );
         errors++;
       }
 
       await sleep(DELAY_MS);
     } catch (err) {
-      console.error(`✗ Fact: ${fact.content.slice(0, 50)}... - Error: ${err}`);
+      logger.error(
+        { factId: fact.id, contentPreview: fact.content.slice(0, 50), error: String(err) },
+        "fact_backfill_error"
+      );
       errors++;
     }
   }
 
+  logger.info({ updated, errors }, "backfill_facts_completed");
   return { updated, errors };
 }
+
+// =============================================================================
+// [BACKFILL:MAIN] Main backfill function
+// =============================================================================
 
 /**
  * Main backfill function
  */
 async function backfill(): Promise<BackfillStats> {
-  console.log("=".repeat(60));
-  console.log("BACKFILL EMBEDDINGS - Starting");
-  console.log("=".repeat(60));
+  logger.info({ action: "backfill_start" }, "backfill_embeddings_starting");
 
-  // Check current state
+  // [STATS:BEFORE] Check current state
   const beforeStats = await query<{ table_name: string; total: number; with_embedding: number }>(`
     SELECT 'entities' as table_name, COUNT(*) as total, COUNT(embedding) as with_embedding FROM entities
     UNION ALL
     SELECT 'facts', COUNT(*), COUNT(embedding) FROM facts
   `);
 
-  console.log("\nBefore backfill:");
-  beforeStats.forEach(s => {
-    console.log(`  ${s.table_name}: ${s.with_embedding}/${s.total} with embeddings`);
-  });
+  const entitiesBefore = beforeStats.find(s => s.table_name === 'entities');
+  const factsBefore = beforeStats.find(s => s.table_name === 'facts');
 
-  // Backfill entities
-  console.log("\n--- Backfilling Entities ---");
+  logger.info(
+    {
+      entities: {
+        total: entitiesBefore?.total || 0,
+        withEmbedding: entitiesBefore?.with_embedding || 0,
+      },
+      facts: {
+        total: factsBefore?.total || 0,
+        withEmbedding: factsBefore?.with_embedding || 0,
+      },
+    },
+    "backfill_before_state"
+  );
+
+  // [BACKFILL:ENTITIES] Backfill entities
   const entitiesResult = await backfillEntities();
 
-  // Backfill facts
-  console.log("\n--- Backfilling Facts ---");
+  // [BACKFILL:FACTS] Backfill facts
   const factsResult = await backfillFacts();
 
-  // Check final state
+  // [STATS:AFTER] Check final state
   const afterStats = await query<{ table_name: string; total: number; with_embedding: number }>(`
     SELECT 'entities' as table_name, COUNT(*) as total, COUNT(embedding) as with_embedding FROM entities
     UNION ALL
     SELECT 'facts', COUNT(*), COUNT(embedding) FROM facts
   `);
 
-  console.log("\n" + "=".repeat(60));
-  console.log("BACKFILL COMPLETE");
-  console.log("=".repeat(60));
+  const entitiesAfter = afterStats.find(s => s.table_name === 'entities');
+  const factsAfter = afterStats.find(s => s.table_name === 'facts');
 
-  console.log("\nAfter backfill:");
-  afterStats.forEach(s => {
-    console.log(`  ${s.table_name}: ${s.with_embedding}/${s.total} with embeddings`);
-  });
-
-  console.log("\nSummary:");
-  console.log(`  Entities: ${entitiesResult.updated} updated, ${entitiesResult.errors} errors`);
-  console.log(`  Facts: ${factsResult.updated} updated, ${factsResult.errors} errors`);
+  logger.info(
+    {
+      action: "backfill_complete",
+      entities: {
+        total: entitiesAfter?.total || 0,
+        withEmbedding: entitiesAfter?.with_embedding || 0,
+        updated: entitiesResult.updated,
+        errors: entitiesResult.errors,
+      },
+      facts: {
+        total: factsAfter?.total || 0,
+        withEmbedding: factsAfter?.with_embedding || 0,
+        updated: factsResult.updated,
+        errors: factsResult.errors,
+      },
+    },
+    "backfill_embeddings_completed"
+  );
 
   return {
     entities: {
-      total: beforeStats.find(s => s.table_name === 'entities')?.total || 0,
+      total: entitiesBefore?.total || 0,
       ...entitiesResult
     },
     facts: {
-      total: beforeStats.find(s => s.table_name === 'facts')?.total || 0,
+      total: factsBefore?.total || 0,
       ...factsResult
     },
   };
 }
 
-// Run if called directly
+// =============================================================================
+// [BACKFILL:RUN] Run if called directly
+// =============================================================================
+
 const isMainModule = import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   backfill()
     .then(stats => {
-      console.log("\nBackfill finished successfully");
+      logger.info({ stats }, "backfill_finished_successfully");
       process.exit(0);
     })
     .catch(err => {
-      console.error("Backfill failed:", err);
+      logger.error({ error: String(err) }, "backfill_failed");
       process.exit(1);
     });
 }
