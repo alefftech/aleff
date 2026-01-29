@@ -24,7 +24,14 @@ RUN apt-get update && \
       git \
       tmux \
       jq \
-      ripgrep && \
+      ripgrep \
+      python3 \
+      python3-pip \
+      python3-venv \
+      ffmpeg \
+      wkhtmltopdf \
+      xvfb \
+      poppler-utils && \
     echo "node ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
     # Install GitHub CLI
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
@@ -45,6 +52,16 @@ RUN pnpm install --frozen-lockfile
 # Note: clawdhub REMOVED due to security concerns (supply chain attacks, no vetting)
 # Only @steipete/oracle is installed (safe, maintained by trusted developer)
 RUN npm install -g @steipete/oracle
+
+# Install Python skills dependencies
+# nano-pdf: Edit PDFs with natural language
+RUN python3 -m pip install --break-system-packages nano-pdf
+
+# Install browser automation tools
+# Puppeteer: Headless Chrome for screenshots, PDFs, scraping
+# Playwright: Multi-browser automation (Chromium, Firefox, WebKit)
+RUN npm install -g puppeteer playwright && \
+    npx playwright install --with-deps chromium
 
 # Install gogcli (Google Suite CLI: Gmail, Calendar, Drive, Contacts)
 # https://github.com/steipete/gogcli

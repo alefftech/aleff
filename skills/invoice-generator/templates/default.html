@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Nota Fiscal - {{NUMERO}}</title>
+    <style>
+        @page {
+            margin: 0;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            color: #333;
+            padding: 40px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #2c3e50;
+        }
+        .header h1 {
+            font-size: 28pt;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .header .subtitle {
+            font-size: 11pt;
+            color: #7f8c8d;
+        }
+        .invoice-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        .box {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .box h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 14pt;
+        }
+        .box p {
+            margin: 5px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+        }
+        th, td {
+            border: 1px solid #bdc3c7;
+            padding: 15px;
+            text-align: left;
+        }
+        th {
+            background: #34495e;
+            color: white;
+            font-weight: bold;
+        }
+        .total-row {
+            background: #ecf0f1;
+            font-weight: bold;
+            font-size: 14pt;
+        }
+        .total-amount {
+            font-size: 20pt;
+            color: #27ae60;
+            text-align: right;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #ecf0f1;
+            font-size: 10pt;
+            color: #7f8c8d;
+        }
+        .payment-info {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>IAVANCADA</h1>
+        <div class="subtitle">Inteligência Artificial Avançada para Negócios</div>
+        <div class="subtitle">CNPJ: XX.XXX.XXX/0001-XX</div>
+    </div>
+
+    <div class="invoice-info">
+        <div>
+            <strong>Nota Fiscal:</strong> {{NUMERO}}<br>
+            <strong>Data de Emissão:</strong> {{DATA}}
+        </div>
+        <div style="text-align: right;">
+            <strong>Status:</strong> <span style="color: #27ae60;">✓ Emitida</span>
+        </div>
+    </div>
+
+    <div class="box">
+        <h3>Cliente</h3>
+        <p><strong>Razão Social:</strong> {{CLIENTE}}</p>
+        <p><strong>CNPJ:</strong> {{CNPJ}}</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Serviço</th>
+                <th>Descrição</th>
+                <th style="text-align: right;">Valor</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{SERVICO}}</td>
+                <td>{{DESCRICAO}}</td>
+                <td style="text-align: right;">R$ {{VALOR}}</td>
+            </tr>
+            <tr class="total-row">
+                <td colspan="2" style="text-align: right;"><strong>Total:</strong></td>
+                <td class="total-amount">R$ {{VALOR}}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="payment-info">
+        <strong>📋 Informações de Pagamento:</strong><br>
+        <br>
+        <strong>Banco:</strong> XXX<br>
+        <strong>Agência:</strong> XXXX<br>
+        <strong>Conta Corrente:</strong> XXXXX-X<br>
+        <strong>PIX:</strong> contato@iavancada.com<br>
+        <br>
+        <strong>Prazo:</strong> 30 dias após emissão
+    </div>
+
+    <div class="footer">
+        <p><strong>IAVANCADA - Inteligência Artificial Avançada</strong></p>
+        <p>www.iavancada.com | contato@iavancada.com | +55 11 XXXX-XXXX</p>
+        <p>Endereço: XXXXXXXXXXXXXXXXXXX</p>
+    </div>
+</body>
+</html>

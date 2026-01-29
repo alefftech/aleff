@@ -56,6 +56,37 @@ ALEFF = MEMÓRIA INSTITUCIONAL + AUTOMAÇÃO + INTELIGÊNCIA
 - [ ] **Pokemon Generator** - Gerar scripts de automação
 - [ ] **Safety Rails** - Aprovação humana para ações destrutivas
 
+## 🛠️ Skills Disponíveis
+
+O Aleff possui 13+ skills instaladas e funcionando:
+
+### Documentação & Edição
+- **📄 nano-pdf** - Edita PDFs com linguagem natural
+- **📑 wkhtmltopdf** - Gera PDFs profissionais de HTML
+- **🎞️ video-frames** - Extrai frames de vídeos (ffmpeg)
+
+### Automação Web
+- **🎭 Playwright** - Automação de navegadores (testes, scraping)
+- **🤖 Puppeteer** - Screenshots, PDFs, web automation
+
+### Display & Visualização
+- **🖼️ Canvas** - Exibe dashboards HTML em devices conectados
+
+### Skills Customizadas (Holding)
+- **📜 contract-parser** - Extrai dados de contratos PDF (AGILCONTRATOS)
+- **🎙️ meeting-notes** - Transcreve áudios + gera resumos estruturados (MENTORINGBASE)
+- **🧾 invoice-generator** - Gera notas fiscais a partir de templates (CFO)
+
+### Skills Nativas (Bundled)
+- **🐙 github** - Automação CI/CD, PRs, issues
+- **🧵 tmux** - Processos paralelos, sessões interativas
+- **🧿 oracle** - Análise profunda de codebase
+- **📜 session-logs** - Busca em conversas anteriores
+
+**📚 Documentação completa:** [skills/docs/README.md](skills/docs/README.md)
+
+**Ver todas:** `ls skills/` (56 skills bundled + 3 customizadas)
+
 ## 🗄️ Fonte de Verdade (Supabase)
 
 ### Tabelas do Aleff (`aleff.*`)
