@@ -204,6 +204,52 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
   }
 
   // ==========================================================================
+  // [HOOK:AGENT_END] Persist assistant responses (fallback for message_sent)
+  // ==========================================================================
+  // Note: message_sent hook may not be called in all cases, so we use agent_end
+  // as a fallback to ensure assistant responses are persisted.
+
+  api.on("agent_end", async (event: any, ctx: any) => {
+    if (!isPostgresConfigured()) {
+      return;
+    }
+
+    // Extract the last assistant message from the messages array
+    const messages = event?.messages;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return;
+    }
+
+    // Find the last assistant message
+    const lastAssistantMsg = [...messages].reverse().find(
+      (msg: any) => msg?.role === "assistant" && typeof msg?.content === "string"
+    );
+
+    if (!lastAssistantMsg) {
+      return;
+    }
+
+    try {
+      const result = await persistMessage({
+        userId: ctx.conversationId || "unknown",
+        channel: ctx.channelId || "unknown",
+        agentId: ctx.accountId || "unknown",
+        role: "assistant",
+        content: lastAssistantMsg.content,
+        metadata: {
+          conversationId: ctx.conversationId,
+          accountId: ctx.accountId,
+          durationMs: event.durationMs,
+          source: "agent_end_hook",
+        },
+      });
+      logger.info(`[aleff-memory] Assistant response persisted via agent_end: ${result}`);
+    } catch (err) {
+      logger.warn(`[aleff-memory] Failed to persist assistant response: ${err}`);
+    }
+  });
+
+  // ==========================================================================
   // [PLUGIN:READY]
   // ==========================================================================
 
