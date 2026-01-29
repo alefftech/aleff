@@ -63,6 +63,35 @@ RUN python3 -m pip install --break-system-packages nano-pdf
 RUN npm install -g puppeteer playwright && \
     npx playwright install --with-deps chromium
 
+# Install productivity tools CLIs
+# These skills will be available but only activate when users configure API keys
+# Notion: Knowledge management, databases, pages
+# Trello: Project management, boards, cards
+# Slack: Team communication (official CLI)
+# Discord: Community communication
+# mcporter: MCP servers management (list, call, auth)
+RUN npm install -g \
+    @iansinnott/notion-cli \
+    trello-cli \
+    discord-cli \
+    mcporter
+
+# Install Slack CLI (official from Slack)
+# Downloads Slack CLI for building Slack apps/integrations
+RUN curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash
+
+# Install summarize CLI (for URL/YouTube/PDF summarization)
+# NOTE: Requires Homebrew on macOS or manual install on Linux
+# Documenting as manual install needed: https://github.com/steipete/summarize
+
+# Install uv (Python package manager, needed for local-places skill)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    ln -s /root/.local/bin/uv /usr/local/bin/uv || true
+
+# Install Obsidian CLI (Go-based, more complex - document manual install)
+# NOTE: Obsidian CLI requires Go runtime, skipping automatic install
+# Users can install manually if needed: https://github.com/Yakitrak/obsidian-cli
+
 # Install gogcli (Google Suite CLI: Gmail, Calendar, Drive, Contacts)
 # https://github.com/steipete/gogcli
 RUN curl -sL https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_0.9.0_linux_amd64.tar.gz | tar xz -C /usr/local/bin/ && \
