@@ -722,8 +722,8 @@ function mergeObjectSchema(base: JsonSchemaObject, extension: JsonSchemaObject):
     ...base,
     ...extension,
     properties: {
-      ...base.properties,
-      ...extension.properties,
+      ...(base.properties ?? {}),
+      ...(extension.properties ?? {}),
     },
   };
   if (mergedRequired.size > 0) {
