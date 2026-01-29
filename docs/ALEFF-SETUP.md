@@ -56,7 +56,6 @@ Arquivo: `/home/devuser/Desktop/abckx/aleff/run-aleffai.sh`
 
 ```bash
 #!/bin/bash
-# Carregar variáveis do .env
 source .env
 
 docker run -d \
@@ -64,26 +63,29 @@ docker run -d \
   --restart unless-stopped \
   --network aleff_default \
   -p 18789:18789 \
-  # IMPORTANTE: Montar AMBOS os paths para compatibilidade
   -v /path/to/data:/home/node/.moltbot:rw \
-  -v /path/to/data:/home/node/.clawdbot:rw \
   -v /path/to/gogcli:/home/node/.config/gogcli:rw \
   -e HOME=/home/node \
   -e NODE_ENV=production \
-  # ... env vars ...
+  -e DATABASE_URL=postgresql://user:pass@postgres:5432/dbname \
+  # ... outras env vars ...
   aleff:latest \
-  node dist/index.js gateway --bind lan --port 18789
+  sh -c "ln -sf /home/node/.moltbot /home/node/.clawdbot && node dist/index.js gateway --bind lan --port 18789"
+
+# Conectar à rede do Traefik
+docker network connect traefik-public aleffai
 ```
 
-### Volume Mounts (CRÍTICO)
+> ⚠️ **IMPORTANTE:** O comando usa `sh -c` para criar symlink `.clawdbot → .moltbot` antes de iniciar. Isso é necessário porque o Moltbot usa paths diferentes dependendo do contexto.
+
+### Volume Mounts
 
 | Mount | Path Container | Descrição |
 |-------|----------------|-----------|
 | data → .moltbot | `/home/node/.moltbot` | Config principal, sessions, auth |
-| data → .clawdbot | `/home/node/.clawdbot` | **Alias obrigatório** (compatibilidade) |
 | gogcli | `/home/node/.config/gogcli` | Google OAuth tokens |
 
-> ⚠️ **IMPORTANTE:** O container precisa de AMBOS os mounts (`.moltbot` e `.clawdbot`) apontando para o mesmo diretório. O Moltbot usa paths diferentes dependendo do contexto.
+> ⚠️ **IMPORTANTE:** O container cria um symlink `.clawdbot → .moltbot` no startup porque o Moltbot usa paths diferentes dependendo do contexto. Isso é feito automaticamente pelo script de run.
 
 ### Estrutura de Dados
 
@@ -295,8 +297,8 @@ Arquivos enviados via Telegram são salvos em:
 
 - [x] Schema PostgreSQL criado
 - [x] Plugin founder-memory carregado
-- [x] Mensagens de usuário sendo persistidas (57+)
-- [ ] Mensagens de assistant (hook pendente)
+- [x] Mensagens de usuário sendo persistidas (66+)
+- [x] Mensagens de assistant sendo persistidas (2+)
 - [ ] Vector search com embeddings
 - [ ] Knowledge graph queries
 
@@ -308,21 +310,75 @@ DATABASE_URL=postgresql://aleff:***@postgres:5432/aleff_memory
 
 ---
 
+## Control UI
+
+### Acesso
+
+```
+https://aleffai.abckx.corp/?token=<GATEWAY_TOKEN>
+```
+
+O token está em `moltbot.json`:
+```json
+{
+  "gateway": {
+    "auth": {
+      "mode": "token",
+      "token": "lZBJ3tVD6IgsjlbCOamot0HGDVfpw8cj"
+    }
+  }
+}
+```
+
+### Configuração
+
+Para habilitar a Control UI sem requisito de pareamento de dispositivo:
+
+```json
+{
+  "gateway": {
+    "controlUi": {
+      "enabled": true,
+      "dangerouslyDisableDeviceAuth": true
+    }
+  }
+}
+```
+
+> ⚠️ `dangerouslyDisableDeviceAuth` só é seguro porque o acesso está restrito via VPN (IPAllowList).
+
+---
+
 ## Troubleshooting
 
 ### Erro: "No API key found for provider anthropic"
 
-**Causa:** auth-profiles.json não existe ou está no path errado.
+**Causa:** auth-profiles.json não existe ou path .clawdbot não está linkado.
 
 **Solução:**
+O container usa um symlink `.clawdbot → .moltbot` criado no startup:
 ```bash
-# Verificar se existe em AMBOS os paths
+# Verificar symlink
+docker exec aleffai ls -la /home/node/ | grep clawdbot
+# Deve mostrar: .clawdbot -> /home/node/.moltbot
+
+# Verificar auth-profiles
 docker exec aleffai cat /home/node/.moltbot/agents/aleff/agent/auth-profiles.json
-docker exec aleffai cat /home/node/.clawdbot/agents/aleff/agent/auth-profiles.json
 
 # Se não existir, criar no diretório de dados (fora do container)
 mkdir -p data/agents/aleff/agent
-# Criar auth-profiles.json com a API key
+cat > data/agents/aleff/agent/auth-profiles.json << 'EOF'
+{
+  "version": 1,
+  "profiles": {
+    "claude-max": {
+      "type": "token",
+      "provider": "anthropic",
+      "token": "SUA_API_KEY_AQUI"
+    }
+  }
+}
+EOF
 ```
 
 ### Erro: "password authentication failed for user aleff"
@@ -444,8 +500,10 @@ POSTGRES_DB=
 | 2026-01-29 | security | IPAllowList para VPN only |
 | 2026-01-29 | fix | Restaurado auth-profiles.json (Anthropic API) |
 | 2026-01-29 | fix | Corrigido PostgreSQL password (scram-sha-256) |
-| 2026-01-29 | fix | Dual mount .moltbot + .clawdbot (compatibilidade) |
+| 2026-01-29 | fix | Symlink .clawdbot → .moltbot no startup |
 | 2026-01-29 | fix | Conectar aleffai à rede traefik-public (Bad Gateway) |
+| 2026-01-29 | feat | Control UI habilitada (dangerouslyDisableDeviceAuth) |
+| 2026-01-29 | feat | Founder Memory salvando mensagens do assistant |
 | 2026-01-29 | docs | Documentação completa para replicação |
 
 ---
