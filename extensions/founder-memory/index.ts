@@ -24,16 +24,16 @@ export default function register(api: MoltbotPluginApi) {
     logger.info("Founder Memory: PostgreSQL configured. Persistence enabled.");
   }
 
-  // Register tools for the agent
-  api.registerTool(createSaveToMemoryTool(), { optional: true });
-  api.registerTool(createSearchMemoryTool(), { optional: true });
-  api.registerTool(createVectorSearchTool(), { optional: true });
-  api.registerTool(createGetContextTool(), { optional: true });
+  // Register tools for the agent (always available when postgres is configured)
+  api.registerTool(createSaveToMemoryTool());
+  api.registerTool(createSearchMemoryTool());
+  api.registerTool(createVectorSearchTool());
+  api.registerTool(createGetContextTool());
 
   // Knowledge graph tools
-  api.registerTool(createKnowledgeGraphTool(), { optional: true });
-  api.registerTool(createFindConnectionTool(), { optional: true });
-  api.registerTool(createLearnFactTool(), { optional: true });
+  api.registerTool(createKnowledgeGraphTool());
+  api.registerTool(createFindConnectionTool());
+  api.registerTool(createLearnFactTool());
 
   // Hook: Persist inbound messages
   api.on("message_received", async (event, ctx) => {
