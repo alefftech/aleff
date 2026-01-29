@@ -202,6 +202,34 @@ DATABASE_URL=postgresql://aleff:***@postgres:5432/aleff_memory
 
 ---
 
+## Autenticação
+
+### Anthropic API (Claude Max)
+
+A chave da Anthropic é armazenada no auth-profiles.json do agent:
+
+```
+/home/node/.moltbot/agents/aleff/agent/auth-profiles.json
+```
+
+**Formato:**
+```json
+{
+  "version": 1,
+  "profiles": {
+    "claude-max": {
+      "type": "token",
+      "provider": "anthropic",
+      "token": "sk-ant-oat01-..."
+    }
+  }
+}
+```
+
+> **IMPORTANTE:** Este arquivo contém credenciais sensíveis e NÃO deve ser commitado.
+
+---
+
 ## Comandos Úteis
 
 ### Acesso via VPN
@@ -247,6 +275,8 @@ ssh dev-04 "docker exec aleff-postgres psql -U aleff -d aleff_memory -c 'SELECT 
 | 2026-01-29 | security | Desativado acesso público |
 | 2026-01-29 | feat | HTTPS via Traefik + cert self-signed |
 | 2026-01-29 | security | IPAllowList para VPN only |
+| 2026-01-29 | fix | Restaurado auth-profiles.json (Anthropic API) |
+| 2026-01-29 | fix | Corrigido PostgreSQL password (scram-sha-256) |
 
 ---
 
