@@ -299,8 +299,21 @@ Arquivos enviados via Telegram são salvos em:
 - [x] Plugin founder-memory carregado
 - [x] Mensagens de usuário sendo persistidas (66+)
 - [x] Mensagens de assistant sendo persistidas (2+)
-- [ ] Vector search com embeddings
+- [x] Embeddings via OpenAI text-embedding-3-small
+- [x] Vector search com pgvector (tool: semantic_search)
 - [ ] Knowledge graph queries
+
+### Tools Disponíveis
+
+| Tool | Descrição |
+|------|-----------|
+| `save_to_memory` | Salva fatos/decisões na memória permanente |
+| `search_memory` | Busca por texto (full-text search) |
+| `semantic_search` | Busca semântica via embeddings (pgvector) |
+| `get_conversation_context` | Recupera contexto recente |
+| `query_knowledge_graph` | Consulta entidades e conexões |
+| `find_connection` | Encontra caminho entre entidades |
+| `learn_fact` | Aprende novo fato sobre entidade |
 
 ### Conexão
 
@@ -504,6 +517,9 @@ POSTGRES_DB=
 | 2026-01-29 | fix | Conectar aleffai à rede traefik-public (Bad Gateway) |
 | 2026-01-29 | feat | Control UI habilitada (dangerouslyDisableDeviceAuth) |
 | 2026-01-29 | feat | Founder Memory salvando mensagens do assistant |
+| 2026-01-29 | feat | Embeddings via OpenAI text-embedding-3-small |
+| 2026-01-29 | feat | Vector search pgvector (semantic_search tool) |
+| 2026-01-29 | refactor | Structured logging (JSON stderr) no founder-memory |
 | 2026-01-29 | docs | Documentação completa para replicação |
 
 ---

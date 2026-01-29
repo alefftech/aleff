@@ -4,6 +4,7 @@ import { isPostgresConfigured } from "./src/postgres.js";
 import {
   createSaveToMemoryTool,
   createSearchMemoryTool,
+  createVectorSearchTool,
   createGetContextTool,
   createKnowledgeGraphTool,
   createFindConnectionTool,
@@ -26,6 +27,7 @@ export default function register(api: MoltbotPluginApi) {
   // Register tools for the agent
   api.registerTool(createSaveToMemoryTool(), { optional: true });
   api.registerTool(createSearchMemoryTool(), { optional: true });
+  api.registerTool(createVectorSearchTool(), { optional: true });
   api.registerTool(createGetContextTool(), { optional: true });
 
   // Knowledge graph tools

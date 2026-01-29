@@ -1,5 +1,5 @@
 import type { AnyAgentTool } from "../../../src/agents/tools/common.js";
-import { saveToMemoryIndex, searchMessages, getConversationContext } from "./persist.js";
+import { saveToMemoryIndex, searchMessages, getConversationContext, vectorSearch } from "./persist.js";
 import { isPostgresConfigured } from "./postgres.js";
 import {
   upsertEntity,
@@ -135,6 +135,68 @@ export function createSearchMemoryTool(): AnyAgentTool {
           role: m.role,
           content: m.content,
           timestamp: m.created_at,
+        })),
+      };
+    },
+  };
+}
+
+/**
+ * Tool for semantic vector search using embeddings
+ */
+export function createVectorSearchTool(): AnyAgentTool {
+  return {
+    name: "semantic_search",
+    description:
+      "Busca semântica na memória usando embeddings (pgvector). " +
+      "Encontra conversas e informações semanticamente similares, mesmo que não contenham as mesmas palavras exatas. " +
+      "Melhor para perguntas conceituais como 'o que discutimos sobre arquitetura?' ou 'decisões sobre infraestrutura'.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Pergunta ou termo de busca semântica",
+        },
+        limit: {
+          type: "number",
+          minimum: 1,
+          maximum: 20,
+          description: "Número máximo de resultados (default 5)",
+        },
+        threshold: {
+          type: "number",
+          minimum: 0,
+          maximum: 1,
+          description: "Limiar de similaridade (0-1, default 0.7). Maior = mais preciso, menor = mais resultados.",
+        },
+      },
+      required: ["query"],
+    },
+    async execute(params: { query: string; limit?: number; threshold?: number }) {
+      if (!isPostgresConfigured()) {
+        return {
+          success: false,
+          error: "PostgreSQL not configured. Set DATABASE_URL or POSTGRES_* env vars.",
+          memories: [],
+        };
+      }
+
+      const results = await vectorSearch({
+        query: params.query,
+        limit: params.limit ?? 5,
+        threshold: params.threshold ?? 0.7,
+      });
+
+      return {
+        success: true,
+        count: results.length,
+        method: results.length > 0 && results[0].similarity > 0 ? "vector" : "fallback_fts",
+        memories: results.map((m) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.created_at,
+          similarity: m.similarity,
         })),
       };
     },

@@ -1,4 +1,19 @@
+/**
+ * Message persistence layer for Founder Memory
+ *
+ * Handles storing and retrieving messages from PostgreSQL with:
+ *   - Conversation session management (24h window)
+ *   - Full-text search (Portuguese)
+ *   - Vector similarity search (pgvector)
+ *   - Audit logging
+ *
+ * All messages are associated with conversations grouped by user/channel/agent.
+ * Embeddings are generated asynchronously to avoid blocking message saves.
+ */
+
 import { getPool, isPostgresConfigured, query, queryOne } from "./postgres.js";
+import { generateEmbedding, formatEmbeddingForPg } from "./embeddings.js";
+import { logger } from "./logger.js";
 
 export type PersistMessageParams = {
   userId: string;
@@ -11,7 +26,12 @@ export type PersistMessageParams = {
 };
 
 /**
- * Upsert or find a conversation for the given user/channel/agent
+ * Get or create a conversation session for the given user/channel/agent
+ *
+ * Conversations are grouped by a 24-hour window. If a conversation exists
+ * within that window, it's reused; otherwise a new one is created.
+ *
+ * @returns Conversation ID or null if postgres is not configured
  */
 async function getOrCreateConversation(params: {
   userId: string;
@@ -22,7 +42,7 @@ async function getOrCreateConversation(params: {
   if (!isPostgresConfigured()) return null;
 
   try {
-    const agentId = params.agentId || 'aleff'; // default to 'aleff'
+    const agentId = params.agentId || "aleff";
 
     // Try to find existing active conversation (within last 24h)
     const existing = await queryOne<{ id: string }>(
@@ -53,15 +73,28 @@ async function getOrCreateConversation(params: {
       [params.userId, params.userName || null, params.channel, agentId]
     );
 
+    logger.info(
+      { conversationId: newConv?.id, userId: params.userId, channel: params.channel },
+      "new conversation created"
+    );
+
     return newConv?.id ?? null;
   } catch (err) {
-    console.error("[founder-memory] Failed to get/create conversation:", err);
+    logger.error(
+      { error: String(err), userId: params.userId, channel: params.channel },
+      "failed to get/create conversation"
+    );
     return null;
   }
 }
 
 /**
- * Persist a message to Postgres
+ * Persist a message to PostgreSQL
+ *
+ * Messages are stored with their conversation context. Embeddings are
+ * generated asynchronously after the message is saved to avoid blocking.
+ *
+ * @returns true if message was saved successfully
  */
 export async function persistMessage(params: PersistMessageParams): Promise<boolean> {
   if (!isPostgresConfigured()) {
@@ -69,7 +102,7 @@ export async function persistMessage(params: PersistMessageParams): Promise<bool
   }
 
   try {
-    const agentId = params.agentId || 'aleff'; // default to 'aleff'
+    const agentId = params.agentId || "aleff";
 
     const conversationId = await getOrCreateConversation({
       userId: params.userId,
@@ -78,11 +111,38 @@ export async function persistMessage(params: PersistMessageParams): Promise<bool
       agentId,
     });
 
-    await query(
+    // Generate embedding asynchronously (don't block message saving)
+    const embeddingPromise = generateEmbedding(params.content);
+
+    // Insert message first (fast path)
+    const inserted = await queryOne<{ id: string }>(
       `INSERT INTO messages (conversation_id, role, content, agent_id, metadata)
-       VALUES ($1, $2, $3, $4, $5)`,
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
       [conversationId, params.role, params.content, agentId, JSON.stringify(params.metadata ?? {})]
     );
+
+    // Update embedding when ready (async, non-blocking)
+    embeddingPromise
+      .then(async (embedding) => {
+        if (embedding && inserted?.id) {
+          try {
+            await query(`UPDATE messages SET embedding = $1 WHERE id = $2`, [
+              formatEmbeddingForPg(embedding),
+              inserted.id,
+            ]);
+            logger.info(
+              { messageId: inserted.id, dimensions: embedding.length },
+              "embedding saved for message"
+            );
+          } catch (err) {
+            logger.error({ error: String(err), messageId: inserted.id }, "failed to save embedding");
+          }
+        }
+      })
+      .catch((err) => {
+        logger.error({ error: String(err) }, "embedding generation failed");
+      });
 
     // Log to audit_log
     await query(
@@ -100,13 +160,18 @@ export async function persistMessage(params: PersistMessageParams): Promise<bool
 
     return true;
   } catch (err) {
-    console.error("[founder-memory] Error persisting message:", err);
+    logger.error(
+      { error: String(err), userId: params.userId, role: params.role },
+      "failed to persist message"
+    );
     return false;
   }
 }
 
 /**
  * Save a specific fact/decision to memory index
+ *
+ * Used for explicit memory saves via the save_to_memory tool.
  */
 export async function saveToMemoryIndex(params: {
   content: string;
@@ -124,24 +189,28 @@ export async function saveToMemoryIndex(params: {
     await query(
       `INSERT INTO memory_index (key_type, key_name, summary, importance, tags)
        VALUES ($1, $2, $3, $4, $5)`,
-      [
-        params.keyType,
-        params.keyName,
-        params.content,
-        params.importance ?? 5,
-        params.tags ?? [],
-      ]
+      [params.keyType, params.keyName, params.content, params.importance ?? 5, params.tags ?? []]
+    );
+
+    logger.info(
+      { keyType: params.keyType, keyName: params.keyName, importance: params.importance },
+      "fact saved to memory index"
     );
 
     return true;
   } catch (err) {
-    console.error("[founder-memory] Error saving to memory index:", err);
+    logger.error(
+      { error: String(err), keyType: params.keyType, keyName: params.keyName },
+      "failed to save to memory index"
+    );
     return false;
   }
 }
 
 /**
- * Search messages by text content
+ * Search messages by text content using PostgreSQL full-text search
+ *
+ * Uses Portuguese language configuration for proper stemming.
  */
 export async function searchMessages(params: {
   query: string;
@@ -160,7 +229,7 @@ export async function searchMessages(params: {
       ORDER BY m.created_at DESC
       LIMIT $2
     `;
-    let queryParams: any[] = [params.query, params.limit ?? 10];
+    let queryParams: unknown[] = [params.query, params.limit ?? 10];
 
     if (params.userId) {
       sql = `
@@ -175,15 +244,24 @@ export async function searchMessages(params: {
       queryParams = [params.query, params.limit ?? 10, params.userId];
     }
 
-    return await query(sql, queryParams);
+    const results = await query(sql, queryParams);
+
+    logger.debug(
+      { query: params.query, resultCount: results.length },
+      "full-text search completed"
+    );
+
+    return results;
   } catch (err) {
-    console.error("[founder-memory] Error searching messages:", err);
+    logger.error({ error: String(err), query: params.query }, "full-text search failed");
     return [];
   }
 }
 
 /**
- * Get recent conversation context
+ * Get recent conversation context for a user/channel
+ *
+ * Returns messages from the most recent conversation session.
  */
 export async function getConversationContext(params: {
   userId: string;
@@ -216,7 +294,102 @@ export async function getConversationContext(params: {
       [conv.id, params.limit ?? 50]
     );
   } catch (err) {
-    console.error("[founder-memory] Error getting context:", err);
+    logger.error(
+      { error: String(err), userId: params.userId, channel: params.channel },
+      "failed to get conversation context"
+    );
+    return [];
+  }
+}
+
+/**
+ * Vector similarity search using pgvector
+ *
+ * Generates an embedding for the query and finds semantically similar messages.
+ * Falls back to full-text search if embedding generation fails.
+ *
+ * @param params.query - The search query
+ * @param params.limit - Maximum results to return (default 10)
+ * @param params.threshold - Cosine similarity threshold (default 0.7, higher = more similar)
+ * @param params.userId - Optional user filter
+ */
+export async function vectorSearch(params: {
+  query: string;
+  limit?: number;
+  threshold?: number;
+  userId?: string;
+}): Promise<Array<{ role: string; content: string; created_at: string; similarity: number }>> {
+  if (!isPostgresConfigured()) {
+    return [];
+  }
+
+  try {
+    // Generate embedding for the search query
+    const queryEmbedding = await generateEmbedding(params.query);
+
+    if (!queryEmbedding) {
+      logger.warn({ query: params.query }, "embedding generation failed, falling back to FTS");
+      // Fallback to full-text search
+      const ftsResults = await searchMessages({
+        query: params.query,
+        limit: params.limit,
+        userId: params.userId,
+      });
+      return ftsResults.map((r) => ({ ...r, similarity: 0 }));
+    }
+
+    const embeddingStr = formatEmbeddingForPg(queryEmbedding);
+    const threshold = params.threshold ?? 0.7;
+    const limit = params.limit ?? 10;
+
+    let sql: string;
+    let queryParams: unknown[];
+
+    if (params.userId) {
+      sql = `
+        SELECT
+          m.role,
+          m.content,
+          m.created_at::text,
+          1 - (m.embedding <=> $1::vector) as similarity
+        FROM messages m
+        JOIN conversations c ON m.conversation_id = c.id
+        WHERE m.embedding IS NOT NULL
+        AND c.user_id = $4
+        AND 1 - (m.embedding <=> $1::vector) > $2
+        ORDER BY m.embedding <=> $1::vector
+        LIMIT $3
+      `;
+      queryParams = [embeddingStr, threshold, limit, params.userId];
+    } else {
+      sql = `
+        SELECT
+          m.role,
+          m.content,
+          m.created_at::text,
+          1 - (m.embedding <=> $1::vector) as similarity
+        FROM messages m
+        WHERE m.embedding IS NOT NULL
+        AND 1 - (m.embedding <=> $1::vector) > $2
+        ORDER BY m.embedding <=> $1::vector
+        LIMIT $3
+      `;
+      queryParams = [embeddingStr, threshold, limit];
+    }
+
+    const results = await query<{ role: string; content: string; created_at: string; similarity: number }>(
+      sql,
+      queryParams
+    );
+
+    logger.info(
+      { query: params.query.slice(0, 50), resultCount: results.length, threshold },
+      "vector search completed"
+    );
+
+    return results;
+  } catch (err) {
+    logger.error({ error: String(err), query: params.query }, "vector search failed");
     return [];
   }
 }
