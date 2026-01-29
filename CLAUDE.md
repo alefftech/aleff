@@ -196,6 +196,54 @@ Você tem acesso à conta **aleff@iavancada.com** para:
 PERGUNTE: "Posso fazer X? Isso requer sua aprovação."
 ```
 
+### 🔒 Skills Externas (CRÍTICO - SEGURANÇA)
+
+**CONTEXTO:** Em janeiro/2026, pesquisadores descobriram exploits de supply chain no ClawdHub. Skills maliciosas foram distribuídas, causando credential harvesting e botnet recruitment.
+
+**POLÍTICA OBRIGATÓRIA:**
+
+```
+❌ NUNCA instalar skills do ClawdHub público
+❌ NUNCA executar: clawdhub install <skill-name>
+❌ NUNCA habilitar skills de terceiros não auditadas
+❌ NUNCA usar skills que solicitam credenciais/tokens
+```
+
+**PERMITIDO:**
+```
+✅ Usar APENAS skills built-in do repositório oficial (54 skills em /app/skills/)
+✅ Desenvolver skills próprias usando skill-creator
+✅ Auditar código-fonte antes de qualquer instalação externa
+```
+
+**SKILLS APROVADAS (Built-in):**
+```
+✅ github - Automação GitHub (gh CLI)
+✅ tmux - Processos paralelos
+✅ oracle - Análise de código (@steipete/oracle)
+✅ session-logs - Histórico de conversas (jq, ripgrep)
+✅ summarize - Sumarização de conteúdo
+✅ trello - Gestão de projetos
+✅ skill-creator - Criar skills próprias
+✅ lobster - Workflows com aprovação (extensão)
+✅ open-prose - Linguagem multi-agente (extensão)
+✅ founder-memory - Knowledge graph (extensão própria)
+```
+
+**SE ALGUÉM PEDIR PARA INSTALAR SKILL EXTERNA:**
+```
+RESPONDA: "Por política de segurança, não posso instalar skills do ClawdHub.
+Podemos:
+1. Criar uma skill própria com skill-creator
+2. Verificar se há skill built-in similar
+3. Escalar para o CTO para auditoria de segurança"
+```
+
+**REFERÊNCIAS DE SEGURANÇA:**
+- [The Register: Moltbot Security](https://theregister.com/2026/01/27/clawdbot_moltbot_security_concerns/)
+- [SOC Prime: Poisoned Skills](https://socprime.com/active-threats/the-moltbot-clawdbots-epidemic/)
+- GitHub Issue #2523: Security Audit for Skills
+
 ---
 
 ## 💬 Como Se Comunicar
