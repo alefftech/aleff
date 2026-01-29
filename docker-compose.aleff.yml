@@ -1,7 +1,27 @@
+# =============================================================================
+# [COMPOSE:MAIN] Aleff AI - Production Stack
+# =============================================================================
+#
+# Usage:
+#   docker compose -f docker-compose.aleff.yml up -d
+#   docker compose -f docker-compose.aleff.yml logs -f aleffai
+#   docker compose -f docker-compose.aleff.yml down
+#
+# Requirements:
+#   - .env file with API keys (see .env.example)
+#   - traefik-public network created: docker network create traefik-public
+#   - /mnt/data/postgres/aleff directory exists
+#   - init-db.sql file for database schema
+#
+# Architecture:
+#   aleffai (gateway:18789) → postgres (pgvector:5432)
+#
+# =============================================================================
+
 services:
-  # =============================================================================
-  # PostgreSQL with pgvector for Founder Memory
-  # =============================================================================
+  # ===========================================================================
+  # [COMPOSE:POSTGRES] PostgreSQL with pgvector for Aleff Memory
+  # ===========================================================================
   postgres:
     container_name: aleff-postgres
     image: pgvector/pgvector:pg16
@@ -25,10 +45,12 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - default
 
-  # =============================================================================
-  # Aleff AI - Moltbot with Founder Memory
-  # =============================================================================
+  # ===========================================================================
+  # [COMPOSE:ALEFFAI] Moltbot Gateway with Aleff Memory Plugin
+  # ===========================================================================
   aleffai:
     container_name: aleffai
     image: aleff:latest
@@ -41,22 +63,30 @@ services:
     env_file:
       - .env
     environment:
+      # [ENV:CORE] Core API Keys (from .env)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - NODE_ENV=production
-      # Local Postgres for Founder Memory
+
+      # [ENV:GATEWAY] Gateway Authentication
+      - CLAWDBOT_GATEWAY_TOKEN=${CLAWDBOT_GATEWAY_TOKEN:-aleff-gateway-secure-2026}
+
+      # [ENV:DATABASE] PostgreSQL for Aleff Memory
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=aleff
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-aleff_local_2026}
       - POSTGRES_DB=aleff_memory
       - DATABASE_URL=postgresql://aleff:${POSTGRES_PASSWORD:-aleff_local_2026}@postgres:5432/aleff_memory
-      # Google OAuth for gog CLI
+
+      # [ENV:INTEGRATIONS] Google OAuth for gog CLI
       - GOG_KEYRING_PASSWORD=${GOG_KEYRING_PASSWORD:-aleff2026secure}
     volumes:
+      # [VOL:CONFIG] Moltbot configuration and state
       - ./data:/home/node/.moltbot:rw
+      # [VOL:GOGCLI] Google OAuth credentials
       - ./gogcli:/home/node/.config/gogcli:rw
     logging:
       driver: json-file
@@ -75,6 +105,11 @@ services:
       - default
       - traefik-public
 
+# =============================================================================
+# [COMPOSE:NETWORKS] Network Configuration
+# =============================================================================
 networks:
+  default:
+    name: aleff_default
   traefik-public:
     external: true
