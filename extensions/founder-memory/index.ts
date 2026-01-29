@@ -35,8 +35,8 @@ export default function register(api: MoltbotPluginApi) {
 
   // Hook: Persist inbound messages
   api.on("message_received", async (event, ctx) => {
-    logger.info(`[founder-memory] message_received from=${event.from} channel=${ctx.channelId}`);
-    
+    logger.info(`[founder-memory] message_received from=${event.from} channel=${ctx.channelId} agent=${ctx.accountId}`);
+
     if (!isPostgresConfigured()) {
       logger.warn("[founder-memory] Postgres not configured, skipping persist");
       return;
@@ -46,6 +46,7 @@ export default function register(api: MoltbotPluginApi) {
       const result = await persistMessage({
         userId: event.from,
         channel: ctx.channelId,
+        agentId: ctx.accountId,
         role: "user",
         content: event.content,
         metadata: {
@@ -63,13 +64,13 @@ export default function register(api: MoltbotPluginApi) {
 
   // Hook: Persist outbound messages
   api.on("message_sent", async (event, ctx) => {
-    logger.info(`[founder-memory] message_sent to=${event.to} success=${event.success} channel=${ctx.channelId}`);
-    
+    logger.info(`[founder-memory] message_sent to=${event.to} success=${event.success} channel=${ctx.channelId} agent=${ctx.accountId}`);
+
     if (!isPostgresConfigured()) {
       logger.warn("[founder-memory] Postgres not configured, skipping persist");
       return;
     }
-    
+
     if (!event.success) {
       logger.info("[founder-memory] Message not successful, skipping persist");
       return;
@@ -79,6 +80,7 @@ export default function register(api: MoltbotPluginApi) {
       const result = await persistMessage({
         userId: event.to,
         channel: ctx.channelId,
+        agentId: ctx.accountId,
         role: "assistant",
         content: event.content,
         metadata: {

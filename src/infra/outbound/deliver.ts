@@ -24,6 +24,7 @@ import {
 import type { NormalizedOutboundPayload } from "./payloads.js";
 import { normalizeReplyPayloadsForDelivery } from "./payloads.js";
 import type { OutboundChannel } from "./targets.js";
+import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 
 export type { NormalizedOutboundPayload } from "./payloads.js";
 export { normalizeOutboundPayloads } from "./payloads.js";
@@ -363,5 +364,42 @@ export async function deliverOutboundPayloads(params: {
       });
     }
   }
+
+  // Trigger message_sent hook for successful deliveries
+  if (results.length > 0) {
+    const hookRunner = getGlobalHookRunner();
+    console.log(
+      "[outbound] Attempting to trigger message_sent hook, hookRunner:",
+      !!hookRunner,
+      "channel:",
+      channel,
+      "accountId:",
+      accountId,
+    );
+    if (hookRunner) {
+      const contentText = params.mirror?.text ?? payloads[0]?.text ?? "";
+      console.log("[outbound] Calling runMessageSent with content length:", contentText.length);
+      void hookRunner
+        .runMessageSent(
+          {
+            to: to,
+            content: contentText,
+            success: true,
+          },
+          {
+            channelId: channel,
+            accountId: accountId,
+            conversationId: to,
+          },
+        )
+        .catch((err) => {
+          // Hook errors should not break message delivery
+          console.error("[outbound] message_sent hook failed:", err);
+        });
+    } else {
+      console.warn("[outbound] hookRunner is null, cannot trigger message_sent hook");
+    }
+  }
+
   return results;
 }

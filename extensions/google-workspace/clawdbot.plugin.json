@@ -1,0 +1,16 @@
+{
+  "id": "google-workspace",
+  "name": "Google Workspace",
+  "description": "Gmail and Calendar integration for Aleff (aleff@iavancada.com)",
+  "version": "1.0.0",
+  "kind": "service",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "account": {
+        "type": "string",
+        "description": "Google account email"
+      }
+    }
+  }
+}

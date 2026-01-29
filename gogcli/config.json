@@ -1,0 +1,6 @@
+{
+  "keyring_backend": "file",
+  "client_domains": {
+    "iavancada.com": "default"
+  }
+}

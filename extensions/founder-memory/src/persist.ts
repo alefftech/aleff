@@ -4,36 +4,40 @@ export type PersistMessageParams = {
   userId: string;
   userName?: string;
   channel: string;
+  agentId?: string;
   role: "user" | "assistant" | "system";
   content: string;
   metadata?: Record<string, unknown>;
 };
 
 /**
- * Upsert or find a conversation for the given user/channel
+ * Upsert or find a conversation for the given user/channel/agent
  */
 async function getOrCreateConversation(params: {
   userId: string;
   userName?: string;
   channel: string;
+  agentId?: string;
 }): Promise<string | null> {
   if (!isPostgresConfigured()) return null;
 
   try {
+    const agentId = params.agentId || 'aleff'; // default to 'aleff'
+
     // Try to find existing active conversation (within last 24h)
     const existing = await queryOne<{ id: string }>(
-      `SELECT id FROM conversations 
-       WHERE user_id = $1 AND channel = $2 
+      `SELECT id FROM conversations
+       WHERE user_id = $1 AND channel = $2 AND agent_id = $3
        AND last_message_at > NOW() - INTERVAL '24 hours'
        ORDER BY last_message_at DESC
        LIMIT 1`,
-      [params.userId, params.channel]
+      [params.userId, params.channel, agentId]
     );
 
     if (existing?.id) {
       // Update last_message_at and increment count
       await query(
-        `UPDATE conversations 
+        `UPDATE conversations
          SET last_message_at = NOW(), message_count = message_count + 1
          WHERE id = $1`,
         [existing.id]
@@ -43,10 +47,10 @@ async function getOrCreateConversation(params: {
 
     // Create new conversation
     const newConv = await queryOne<{ id: string }>(
-      `INSERT INTO conversations (user_id, user_name, channel, started_at, last_message_at, message_count)
-       VALUES ($1, $2, $3, NOW(), NOW(), 1)
+      `INSERT INTO conversations (user_id, user_name, channel, agent_id, started_at, last_message_at, message_count)
+       VALUES ($1, $2, $3, $4, NOW(), NOW(), 1)
        RETURNING id`,
-      [params.userId, params.userName || null, params.channel]
+      [params.userId, params.userName || null, params.channel, agentId]
     );
 
     return newConv?.id ?? null;
@@ -65,16 +69,19 @@ export async function persistMessage(params: PersistMessageParams): Promise<bool
   }
 
   try {
+    const agentId = params.agentId || 'aleff'; // default to 'aleff'
+
     const conversationId = await getOrCreateConversation({
       userId: params.userId,
       userName: params.userName,
       channel: params.channel,
+      agentId,
     });
 
     await query(
-      `INSERT INTO messages (conversation_id, role, content, metadata)
-       VALUES ($1, $2, $3, $4)`,
-      [conversationId, params.role, params.content, JSON.stringify(params.metadata ?? {})]
+      `INSERT INTO messages (conversation_id, role, content, agent_id, metadata)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [conversationId, params.role, params.content, agentId, JSON.stringify(params.metadata ?? {})]
     );
 
     // Log to audit_log
@@ -87,7 +94,7 @@ export async function persistMessage(params: PersistMessageParams): Promise<bool
         params.userId,
         conversationId,
         true,
-        JSON.stringify({ channel: params.channel, content_length: params.content.length }),
+        JSON.stringify({ channel: params.channel, agent_id: agentId, content_length: params.content.length }),
       ]
     );
 

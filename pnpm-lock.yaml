@@ -315,12 +315,12 @@ importers:
 
   extensions/founder-memory:
     dependencies:
-      '@supabase/supabase-js':
-        specifier: ^2.47.14
-        version: 2.93.2
       moltbot:
         specifier: '*'
         version: 0.1.0
+      pg:
+        specifier: ^8.17.2
+        version: 8.17.2
 
   extensions/google-antigravity-auth: {}
 

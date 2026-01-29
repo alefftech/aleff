@@ -73,3 +73,7 @@ USER.md
 .serena/
 data/
 .env
+
+# Google OAuth credentials
+gogcli/credentials.json
+gogcli/keyring/
