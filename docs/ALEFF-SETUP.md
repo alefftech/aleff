@@ -520,6 +520,9 @@ POSTGRES_DB=
 | 2026-01-29 | feat | Embeddings via OpenAI text-embedding-3-small |
 | 2026-01-29 | feat | Vector search pgvector (semantic_search tool) |
 | 2026-01-29 | refactor | Structured logging (JSON stderr) no founder-memory |
+| 2026-01-29 | feat | Backfill embeddings script (74/74 mensagens) |
+| 2026-01-29 | fix | OPENAI_API_KEY atualizada |
+| 2026-01-29 | fix | Tools founder-memory não-opcionais (sempre disponíveis) |
 | 2026-01-29 | docs | Documentação completa para replicação |
 
 ---
