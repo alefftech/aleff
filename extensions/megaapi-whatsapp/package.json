@@ -1,0 +1,9 @@
+{
+  "name": "megaapi-whatsapp",
+  "version": "1.0.0",
+  "description": "MegaAPI WhatsApp integration for Moltbot/Aleff",
+  "type": "module",
+  "main": "index.ts",
+  "author": "Claude Code + CTO Ronald",
+  "license": "PRIVATE"
+}
