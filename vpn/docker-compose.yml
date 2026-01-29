@@ -1,0 +1,32 @@
+services:
+  wireguard:
+    image: linuxserver/wireguard:latest
+    container_name: wireguard-dev04
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
+    volumes:
+      - ./wg0.conf:/config/wg_confs/wg0.conf:ro
+      - ./dnsmasq.conf:/etc/dnsmasq.conf:ro
+      - ./hosts.corp:/etc/hosts.corp:ro
+      - ./custom-cont-init.d:/custom-cont-init.d:ro
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - '51820:51820/udp'
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    restart: unless-stopped
+    networks:
+      aleff_default:
+      traefik-public:
+
+networks:
+  aleff_default:
+    external: true
+  traefik-public:
+    external: true

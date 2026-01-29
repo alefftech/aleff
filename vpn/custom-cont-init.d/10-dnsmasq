@@ -1,0 +1,4 @@
+#!/bin/bash
+echo "**** Installing dnsmasq ****"
+apk add --no-cache dnsmasq
+echo "**** dnsmasq will start with WireGuard PostUp ****"
