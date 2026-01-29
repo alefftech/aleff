@@ -1,0 +1,16 @@
+{
+  "name": "@aleff/wavespeed",
+  "version": "1.0.0",
+  "description": "Wavespeed AI integration for Aleff",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  },
+  "author": "Aleff Team",
+  "license": "MIT"
+}

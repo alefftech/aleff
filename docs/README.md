@@ -37,6 +37,8 @@ docs/
 | Guia | Tempo | Dificuldade | Link |
 |------|-------|-------------|------|
 | **WhatsApp (MegaAPI)** | 10 min | Fácil | [guides/MEGAAPI_WHATSAPP_SETUP_GUIDE.md](guides/MEGAAPI_WHATSAPP_SETUP_GUIDE.md) |
+| **Wavespeed + ElevenLabs** | 15 min | Fácil | [guides/WAVESPEED_ELEVENLABS_SETUP_GUIDE.md](guides/WAVESPEED_ELEVENLABS_SETUP_GUIDE.md) |
+| **Skills Activation** | 5-30 min | Fácil-Média | [guides/SKILLS_ACTIVATION_GUIDE.md](guides/SKILLS_ACTIVATION_GUIDE.md) |
 | **Deployment** | - | Média | `/DEPLOYMENT.md` |
 
 ### 🔒 Segurança

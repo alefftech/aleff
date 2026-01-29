@@ -8,9 +8,9 @@
 ## 📊 Resumo Geral
 
 ```
-Total de skills no container: 54
+Total de skills no container: 56
 ├── ✅ Ativas sem configuração: 6
-├── 🔧 Requerem configuração: 8
+├── 🔧 Requerem configuração: 10
 ├── 🚫 Desabilitadas (segurança): 2
 └── 💤 Disponíveis (não usadas): 38
 ```
@@ -19,7 +19,62 @@ Total de skills no container: 54
 
 ## ✅ Skills ATIVAS (Prontas para Usar)
 
-### 1. Canvas 🎨
+### 1. Wavespeed 🌊
+**Status:** ✅ ATIVA (configuração pendente)
+**O que faz:** Gerar imagens e vídeos com IA (700+ modelos)
+**Como usar:** Requer API key do Wavespeed
+
+```bash
+# Configurar em data/moltbot.json
+{
+  "plugins": {
+    "entries": {
+      "wavespeed": {
+        "enabled": true,
+        "config": {
+          "apiKey": "sk-wave_xxxxx"
+        }
+      }
+    }
+  }
+}
+```
+
+**Modelos disponíveis:**
+- FLUX Pro/Dev - Imagens alta qualidade
+- Stable Diffusion XL - Versatilidade
+- Kling AI - Vídeos 5-10s
+- Luma Dream Machine - Vídeos cinemáticos
+
+**Guia completo:** `/docs/guides/WAVESPEED_ELEVENLABS_SETUP_GUIDE.md`
+
+---
+
+### 2. ElevenLabs TTS 🎙️
+**Status:** ✅ ATIVA (configuração pendente)
+**O que faz:** Text-to-Speech com vozes naturais em 32 idiomas
+**Como usar:** Requer API key do ElevenLabs
+
+```bash
+# Configurar em data/moltbot.json ou .env
+ELEVENLABS_API_KEY=sk_xxxxx
+
+# Usar no Telegram
+/tts on
+@aleff [[tts]] Sua mensagem aqui
+```
+
+**Recursos:**
+- Vozes brasileiras (pt-BR)
+- Streaming (75ms latência)
+- Voice cloning
+- Múltiplos modelos
+
+**Guia completo:** `/docs/guides/WAVESPEED_ELEVENLABS_SETUP_GUIDE.md`
+
+---
+
+### 3. Canvas 🎨
 **Status:** ✅ ATIVO
 **O que faz:** Display HTML/visualizações em nodes conectados
 **Como usar:** Aleff detecta automaticamente quando precisa mostrar conteúdo visual
@@ -37,7 +92,7 @@ Total de skills no container: 54
 
 ---
 
-### 2. Remotion-dev 🎬 (NOVA - Custom)
+### 4. Remotion-dev 🎬 (NOVA - Custom)
 **Status:** ✅ ATIVA (desenvolvida internamente)
 **O que faz:** Criar vídeos programaticamente com React
 **Binário:** `npx` (já disponível)
@@ -59,7 +114,7 @@ npx remotion render CourseIntro output.mp4 \
 
 ---
 
-### 3. GitHub 🐙
+### 5. GitHub 🐙
 **Status:** ✅ ATIVA
 **Binário:** `gh` (instalado)
 **O que faz:** Automação GitHub (PRs, CI/CD, issues)
@@ -72,7 +127,7 @@ gh run view <run-id> --log-failed
 
 ---
 
-### 4. Tmux 🧵
+### 6. Tmux 🧵
 **Status:** ✅ ATIVA
 **Binário:** `tmux` (instalado)
 **O que faz:** Orquestração de processos paralelos
@@ -84,7 +139,7 @@ tmux -S /tmp/moltbot.sock send-keys "python3" Enter
 
 ---
 
-### 5. Oracle 🧿
+### 7. Oracle 🧿
 **Status:** ✅ ATIVA
 **Binário:** `oracle` (instalado)
 **O que faz:** Análise profunda de codebase com contexto completo
@@ -97,7 +152,7 @@ oracle --engine browser --model "5.2 Pro" \
 
 ---
 
-### 6. Session-logs 📜
+### 8. Session-logs 📜
 **Status:** ✅ ATIVA
 **Binários:** `jq`, `rg` (instalados)
 **O que faz:** Buscar em conversas anteriores
@@ -242,10 +297,10 @@ GOOGLE_AI_API_KEY=your-key
 ### Para MENTORINGBASE (Melissa):
 
 **Alta prioridade:**
-1. **Summarize** - Resumir conteúdo de vídeos/artigos
-2. **Remotion-dev** - Gerar intros de cursos automaticamente
-3. **Video-frames** - Processar vídeo aulas
-4. **OpenAI Image Gen** - Criar material visual
+1. **Wavespeed** - Gerar vídeos de course intros e video-aulas ✨
+2. **ElevenLabs** - Narração em português para vídeos ✨
+3. **Summarize** - Resumir conteúdo de vídeos/artigos
+4. **Remotion-dev** - Templates programáticos de vídeos
 
 **Média prioridade:**
 5. **Trello** - Gestão de projetos (se usarem)
@@ -256,9 +311,11 @@ GOOGLE_AI_API_KEY=your-key
 ### Para IAVANCADA (Cintia):
 
 **Alta prioridade:**
-1. **Summarize** - Pesquisa de mercado
-2. **GitHub** - Já ativo ✅
-3. **Oracle** - Análise de código
+1. **Wavespeed** - Gerar demos visuais de produtos ✨
+2. **ElevenLabs** - Narração para apresentações ✨
+3. **Summarize** - Pesquisa de mercado
+4. **GitHub** - Já ativo ✅
+5. **Oracle** - Análise de código
 
 ---
 
@@ -321,11 +378,13 @@ docker logs aleffai | grep <skill-name>
 
 ---
 
-## 📋 Lista Completa de 54 Skills
+## 📋 Lista Completa de 56 Skills
 
 ```
 ✅ = Ativa | ⚠️ = Requer config | 🚫 = Não usada | 💤 = Disponível
 
+⚠️ wavespeed           - Gerar imagens/vídeos AI (NOVO ✨)
+⚠️ elevenlabs          - Text-to-Speech multilíngue (NOVO ✨)
 ✅ canvas              - Display HTML/visualizações
 ✅ remotion-dev        - Criar vídeos com React (CUSTOM)
 ✅ github              - Automação GitHub

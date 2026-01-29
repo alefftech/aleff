@@ -67,6 +67,8 @@ aleff/
 | Guia | Tempo | Status |
 |------|-------|--------|
 | **[WhatsApp via MegaAPI](docs/guides/MEGAAPI_WHATSAPP_SETUP_GUIDE.md)** | 10 min | ✅ Pronto |
+| **[Wavespeed + ElevenLabs](docs/guides/WAVESPEED_ELEVENLABS_SETUP_GUIDE.md)** | 15 min | ✅ Pronto |
+| **[Skills Activation](docs/guides/SKILLS_ACTIVATION_GUIDE.md)** | 5-30 min | ✅ Pronto |
 | Telegram | - | ✅ Já configurado |
 | Gmail/Calendar | - | ✅ Já configurado |
 
