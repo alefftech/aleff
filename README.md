@@ -20,11 +20,22 @@ ALEFF = MEMÓRIA INSTITUCIONAL + AUTOMAÇÃO + INTELIGÊNCIA
 
 | Componente | Status | Descrição |
 |------------|--------|-----------|
-| **Gateway** | ✅ Running | ws://127.0.0.1:18789 no dev-04 |
+| **Gateway** | ✅ Running | https://aleffai.a25.com.br |
 | **Telegram** | ✅ Connected | @aleff_000_bot |
 | **Claude Max** | ✅ Authenticated | via setup-token (OAuth) |
 | **Supabase** | ✅ Schema ready | aleff.* + acesso a founder_* |
 | **Auto-start** | ✅ Enabled | systemd on dev-04 |
+| **Google OAuth** | ✅ Configured | aleff@iavancada.com (Gmail, Calendar) |
+| **Transcription** | ✅ Working | Groq (primary) + OpenAI (fallback) |
+
+## 🌐 URLs & Acessos
+
+| Serviço | URL | Auth |
+|---------|-----|------|
+| **GUI Pública** | https://aleffai.a25.com.br | Token + Device Pairing |
+| **WebSocket** | wss://aleffai.a25.com.br | Token header |
+| **Telegram** | @aleff_000_bot | Open DM |
+| **OAuth Callback** | https://aleffai.a25.com.br/oauth/callback | - |
 
 ## 🧠 Capacidades
 
@@ -32,7 +43,11 @@ ALEFF = MEMÓRIA INSTITUCIONAL + AUTOMAÇÃO + INTELIGÊNCIA
 - [x] Responder via Telegram (@aleff_000_bot)
 - [x] Usar Claude Opus 4.5 (Max subscription)
 - [x] Rodar 24/7 no dev-04
-- [x] **Web Search** - Busca inteligente via Brave, Tavily ou Perplexity (auto-detection)
+- [x] GUI pública em https://aleffai.a25.com.br
+- [x] Transcrição de áudio (Groq + OpenAI fallback)
+- [x] Google OAuth configurado (aleff@iavancada.com)
+- [x] **Gmail + Calendar** - Via gog CLI (buscar emails, criar eventos com Meet)
+- [x] **Web Search** - Busca inteligente via Brave, Tavily ou Perplexity
 - [x] **Founder Memory** - Persistência de conversas no Supabase (PostgreSQL + pgvector)
 
 ### Em Desenvolvimento (Roadmap)
@@ -65,6 +80,7 @@ founder_dailylog       -- Log diário
 ## 🚀 Deploy
 
 **Server:** dev-04 (ccx13, 178.156.214.14)
+**URL Pública:** https://aleffai.a25.com.br
 
 ```bash
 # SSH
@@ -80,13 +96,40 @@ docker restart aleffai
 docker ps | grep aleffai
 ```
 
-**Arquivos:**
+**Arquivos no Server:**
 ```
 /opt/aleff/
 ├── docker-compose.aleff.yml  # Config container
-├── data/moltbot.json         # Config gateway + telegram
+├── data/moltbot.json         # Config gateway + telegram + plugins
 └── Dockerfile                # Image aleff:latest
 ```
+
+**Arquivos no Repo:**
+```
+/mnt/HC_Volume_104479762/abckx/aleff/
+├── .env                      # Credenciais (NÃO commitar)
+├── .env.example              # Template sem secrets
+├── docker-compose.aleff.yml  # Config docker
+├── init-db.sql               # Schema PostgreSQL local
+└── data/moltbot.json         # Config gateway
+```
+
+## 🔐 Credenciais (.env)
+
+Todas as credenciais estão centralizadas em `.env`:
+
+| Variável | Serviço | Uso |
+|----------|---------|-----|
+| `OPENAI_API_KEY` | OpenAI | Embeddings + Transcription fallback |
+| `GROQ_API_KEY` | Groq | Transcription primário (whisper) |
+| `GOOGLE_CLIENT_ID` | Google OAuth | Gmail, Calendar |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth | Gmail, Calendar |
+| `GOOGLE_REFRESH_TOKEN` | Google OAuth | Token persistente |
+| `GOOGLE_ACCOUNT` | Google | aleff@iavancada.com |
+| `SUPABASE_URL` | Supabase | Founder Memory |
+| `SUPABASE_SERVICE_KEY` | Supabase | Admin access (Passbolt) |
+
+**IMPORTANTE:** `.env` está no `.gitignore`. Nunca commitar secrets.
 
 ## 🔧 Desenvolvimento
 

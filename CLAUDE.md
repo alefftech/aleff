@@ -43,6 +43,24 @@ founder_changelog      -- Decisões tomadas
 founder_dailylog       -- Log diário
 ```
 
+### Google Workspace (aleff@iavancada.com)
+
+**IMPORTANTE: Use os scripts bash em `~/.moltbot/scripts/`. NÃO use gog (não está instalado).**
+
+```
+📧 GMAIL:
+- Scripts: gmail-search.sh, gmail-read.sh
+- Busca e leitura de emails
+
+📅 CALENDAR:
+- Scripts: calendar-today.sh, calendar-upcoming.sh, calendar-create.sh
+- Leitura e criação de eventos com Meet
+
+🔐 AUTH:
+- OAuth2 com refresh token (automático nos scripts)
+- Conta: aleff@iavancada.com
+```
+
 ### Contexto da Holding
 
 ```
@@ -83,6 +101,60 @@ C-LEVELS:
 4. Ajudar com decisões baseadas em dados
 ```
 
+### P1.5 - Google Workspace Integration
+
+Você tem acesso à conta **aleff@iavancada.com** para:
+
+#### 📧 Gmail
+
+**IMPORTANTE: Use APENAS os scripts bash. NÃO tente usar gog ou outras ferramentas.**
+
+**Scripts em `~/.moltbot/scripts/`:**
+
+```bash
+# Buscar emails (query usa sintaxe Gmail)
+~/.moltbot/scripts/gmail-search.sh "is:unread" 10
+~/.moltbot/scripts/gmail-search.sh "from:importante@empresa.com" 5
+
+# Ler email completo por ID
+~/.moltbot/scripts/gmail-read.sh <message_id>
+```
+
+**Quando usar:**
+- "Tem emails não lidos?" → Execute: `~/.moltbot/scripts/gmail-search.sh "is:unread"`
+- "O que fulano mandou?" → Execute: `~/.moltbot/scripts/gmail-search.sh "from:fulano@..."`
+
+**Permissões:**
+- ✅ Buscar e ler emails
+- ❌ Enviar/deletar emails (não implementado)
+
+#### 📅 Google Calendar
+
+**IMPORTANTE: Use APENAS os scripts bash. NÃO tente usar gog ou outras ferramentas.**
+
+**Scripts em `~/.moltbot/scripts/`:**
+
+```bash
+# Ver agenda de hoje
+~/.moltbot/scripts/calendar-today.sh
+
+# Ver próximos N dias
+~/.moltbot/scripts/calendar-upcoming.sh 7
+
+# Criar evento COM link do Google Meet
+~/.moltbot/scripts/calendar-create.sh "Título" "2026-01-30T14:00:00" "2026-01-30T15:00:00" "email@convidado.com" "Descrição"
+```
+
+**Quando usar:**
+- "Qual minha agenda hoje?" → Execute: `~/.moltbot/scripts/calendar-today.sh`
+- "Cria uma reunião com João amanhã 14h" → Execute: `~/.moltbot/scripts/calendar-create.sh "Reunião com João" "2026-01-30T14:00:00" "2026-01-30T15:00:00" "joao@email.com"`
+- O script retorna o link do Meet automaticamente
+
+**Permissões:**
+- ✅ Consultar agenda
+- ✅ Criar eventos com Meet (pedir confirmação ao usuário antes)
+- ❌ Editar/deletar eventos (não implementado)
+
 ### P2 - Pokemon Generator (Futuro)
 ```
 1. Identificar tarefas repetitivas
@@ -114,6 +186,9 @@ C-LEVELS:
 ✅ Gerar drafts de documentos
 ✅ Criar scripts (sem executar)
 ✅ Fazer cálculos e análises
+✅ Ler emails (Gmail)
+✅ Consultar agenda (Calendar)
+✅ Resumir threads de email
 ```
 
 ### Quando em Dúvida:

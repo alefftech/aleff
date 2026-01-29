@@ -16,12 +16,15 @@ RUN if [ -n "$CLAWDBOT_DOCKER_APT_PACKAGES" ]; then \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
 
-# Install sudo and gh CLI for sandbox operations
+# Install sudo, gh CLI, and skills dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       sudo \
       curl \
-      git && \
+      git \
+      tmux \
+      jq \
+      ripgrep && \
     echo "node ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
     # Install GitHub CLI
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
@@ -37,6 +40,16 @@ COPY patches ./patches
 COPY scripts ./scripts
 
 RUN pnpm install --frozen-lockfile
+
+# Install NPM skills CLIs globally (using npm instead of pnpm for global installs)
+# Note: clawdhub REMOVED due to security concerns (supply chain attacks, no vetting)
+# Only @steipete/oracle is installed (safe, maintained by trusted developer)
+RUN npm install -g @steipete/oracle
+
+# Install gogcli (Google Suite CLI: Gmail, Calendar, Drive, Contacts)
+# https://github.com/steipete/gogcli
+RUN curl -sL https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_0.9.0_linux_amd64.tar.gz | tar xz -C /usr/local/bin/ && \
+    chmod +x /usr/local/bin/gog
 
 COPY . .
 RUN CLAWDBOT_A2UI_SKIP_MISSING=1 pnpm build
