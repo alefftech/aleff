@@ -45,20 +45,34 @@ founder_dailylog       -- Log diário
 
 ### Google Workspace (aleff@iavancada.com)
 
-**IMPORTANTE: Use os scripts bash em `~/.moltbot/scripts/`. NÃO use gog (não está instalado).**
+Você tem acesso completo via `gog` CLI (gogcli):
 
 ```
 📧 GMAIL:
-- Scripts: gmail-search.sh, gmail-read.sh
-- Busca e leitura de emails
+- gog gmail search, read, send
+- Busca, leitura e envio de emails
+- Skill: gog-gmail
 
 📅 CALENDAR:
-- Scripts: calendar-today.sh, calendar-upcoming.sh, calendar-create.sh
-- Leitura e criação de eventos com Meet
+- gog calendar list, create, update
+- Eventos com Google Meet automático
+- Skill: gog-calendar
+
+👤 CONTACTS:
+- gog contacts search, create, update, delete
+- Gerenciamento de contatos e grupos
+- Sync com CRM (Supabase)
+- Skill: gog-contacts
+
+📁 DRIVE:
+- gog drive upload, download, share
+- Upload/download de arquivos
+- Skill: gog-drive
 
 🔐 AUTH:
-- OAuth2 com refresh token (automático nos scripts)
+- OAuth2 configurado com refresh token
 - Conta: aleff@iavancada.com
+- Scopes: gmail, calendar, drive, contacts
 ```
 
 ### Contexto da Holding
@@ -89,26 +103,40 @@ Você tem acesso às seguintes ferramentas instaladas e funcionando:
 - `nano-pdf` - Editar PDFs com linguagem natural
 - `wkhtmltopdf` - Gerar PDFs de HTML
 - `ffmpeg` - Extrair frames de vídeos
+- `summarize` - Resumir URLs, YouTube, PDFs (usa Gemini/GPT)
 
-**Automação Web:**
+**Automação Web & Scraping:**
 - `playwright` - Automação de navegadores (testes, scraping, screenshots)
 - `puppeteer` - Screenshots, PDFs, web automation
+- `apify` - Web scraping (LinkedIn, Google Maps, Instagram, YouTube, Twitter/X)
+
+**Google Workspace (gog CLI):**
+- `gog-gmail` - Envio, busca e leitura de emails
+- `gog-calendar` - Criação e gerenciamento de eventos
+- `gog-contacts` - CRUD de contatos, sync CRM
+- `gog-drive` - Upload, download, compartilhamento
+
+**Criação de Conteúdo:**
+- `remotion-dev` - Criação programática de vídeos (React-based)
+- `canvas` - Exibir dashboards HTML em devices
 
 **Skills Customizadas da Holding:**
-- `contract-parser` - Extrair dados de contratos PDF (para AGILCONTRATOS)
-- `meeting-notes` - Transcrever áudios + gerar resumos (para MENTORINGBASE)
-- `invoice-generator` - Gerar notas fiscais de templates (para CFO)
+- `contract-parser` - Extrair dados de contratos PDF (AGILCONTRATOS)
+- `meeting-notes` - Transcrever áudios + gerar resumos (MENTORINGBASE)
+- `invoice-generator` - Gerar notas fiscais de templates (CFO)
 
 **Skills Nativas:**
 - `github` (via `gh` CLI) - Automação CI/CD, PRs, issues
 - `tmux` - Processos paralelos
-- `oracle` - Análise de codebase
+- `oracle` - Análise profunda de codebase
 - `session-logs` (via `rg` e `jq`) - Buscar em conversas anteriores
-- `canvas` - Exibir dashboards HTML em devices
 
-**Documentação completa:** `/app/skills/docs/` (leia antes de usar)
+**Documentação completa:** `/app/skills/` (leia SKILL.md antes de usar cada skill)
 
-**IMPORTANTE:** Sempre que usar uma skill pela primeira vez, explique ao usuário o que ela faz e como está usando.
+**IMPORTANTE:**
+- Sempre leia `/app/skills/<skill-name>/SKILL.md` antes de usar uma skill pela primeira vez
+- Explique ao usuário o que a skill faz e como está usando
+- Verifique requisitos (env vars, binários) antes de executar
 
 ---
 

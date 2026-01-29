@@ -58,19 +58,28 @@ ALEFF = MEMÓRIA INSTITUCIONAL + AUTOMAÇÃO + INTELIGÊNCIA
 
 ## 🛠️ Skills Disponíveis
 
-O Aleff possui 13+ skills instaladas e funcionando:
+O Aleff possui 18+ skills instaladas e funcionando:
 
 ### Documentação & Edição
 - **📄 nano-pdf** - Edita PDFs com linguagem natural
 - **📑 wkhtmltopdf** - Gera PDFs profissionais de HTML
 - **🎞️ video-frames** - Extrai frames de vídeos (ffmpeg)
+- **🧾 summarize** - Resumos de URLs, YouTube, PDFs (Gemini/GPT)
 
-### Automação Web
+### Automação Web & Scraping
 - **🎭 Playwright** - Automação de navegadores (testes, scraping)
 - **🤖 Puppeteer** - Screenshots, PDFs, web automation
+- **🕷️ apify** - Web scraping (LinkedIn, Google Maps, Instagram, YouTube, Twitter/X)
 
 ### Display & Visualização
 - **🖼️ Canvas** - Exibe dashboards HTML em devices conectados
+- **🎬 remotion-dev** - Criação programática de vídeos (React-based)
+
+### Google Workspace
+- **📧 gog-gmail** - Envio de emails, busca, anexos (Gmail API)
+- **📅 gog-calendar** - Agendamento, eventos com Meet (Calendar API)
+- **👤 gog-contacts** - Gerenciamento de contatos, CRM sync (Contacts API)
+- **📁 gog-drive** - Upload, download, compartilhamento (Drive API)
 
 ### Skills Customizadas (Holding)
 - **📜 contract-parser** - Extrai dados de contratos PDF (AGILCONTRATOS)
@@ -85,7 +94,7 @@ O Aleff possui 13+ skills instaladas e funcionando:
 
 **📚 Documentação completa:** [skills/docs/README.md](skills/docs/README.md)
 
-**Ver todas:** `ls skills/` (56 skills bundled + 3 customizadas)
+**Ver todas:** `ls skills/` (56 skills bundled + 6 customizadas)
 
 ## 🗄️ Fonte de Verdade (Supabase)
 

@@ -81,8 +81,8 @@ RUN npm install -g \
 RUN curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash
 
 # Install summarize CLI (for URL/YouTube/PDF summarization)
-# NOTE: Requires Homebrew on macOS or manual install on Linux
-# Documenting as manual install needed: https://github.com/steipete/summarize
+# https://github.com/steipete/summarize
+RUN npm install -g @steipete/summarize
 
 # Install uv (Python package manager, needed for local-places skill)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
