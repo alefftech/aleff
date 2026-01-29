@@ -2,13 +2,24 @@
 
 **Data:** 2026-01-29
 **Owner:** CTO Ronald
-**Status:** Produção
+**Status:** Produção (VPN Only)
 
 ---
 
 ## Resumo
 
-Aleff AI é o assistente pessoal do Founder, baseado no Moltbot com integração completa ao Google Workspace e acesso via VPN privada.
+Aleff AI é o assistente pessoal do Founder, baseado no Moltbot com integração completa ao Google Workspace. Acesso exclusivo via VPN privada com SSL.
+
+---
+
+## Acesso
+
+| Tipo | URL | Status |
+|------|-----|--------|
+| **VPN (Produção)** | https://aleffai.abckx.corp | ✅ Ativo |
+| **Dashboard** | https://dev04.abckx.corp | ✅ VPN Only |
+| Público | ~~https://aleffai.a25.com.br~~ | ❌ Desativado |
+| Telegram | @aleff_000_bot | ✅ Ativo |
 
 ---
 
@@ -20,17 +31,16 @@ Aleff AI é o assistente pessoal do Founder, baseado no Moltbot com integração
 |------|-------|
 | IP Público | 178.156.214.14 |
 | Tipo | Hetzner CCX13 |
-| URL Pública | https://aleffai.a25.com.br |
-| Telegram | @aleff_000_bot |
-| VPN | 178.156.214.14:51820 |
+| VPN Endpoint | 178.156.214.14:51820 |
 
 ### Containers
 
-| Container | Imagem | Rede | Função |
-|-----------|--------|------|--------|
-| aleffai | aleff:latest | 172.20.0.3 | Moltbot Gateway |
-| aleff-postgres | pgvector/pgvector:pg16 | 172.20.0.x | Founder Memory |
-| wireguard-dev04 | linuxserver/wireguard | 10.10.10.1 | VPN + DNS |
+| Container | Função | Rede |
+|-----------|--------|------|
+| aleffai | Moltbot Gateway | 172.20.0.3 |
+| aleff-postgres | Founder Memory (pgvector) | 172.20.0.x |
+| wireguard-dev04 | VPN + DNS | 10.10.10.1 |
+| traefik | Reverse Proxy + SSL | 172.21.0.2 |
 
 ---
 
@@ -42,15 +52,22 @@ Aleff AI é o assistente pessoal do Founder, baseado no Moltbot com integração
 Endpoint: 178.156.214.14:51820
 Network: 10.10.10.0/24
 DNS: 10.10.10.1 (dnsmasq integrado)
+SSL: Traefik com cert self-signed *.abckx.corp
 ```
 
 ### Domínios Internos
 
-| Domínio | IP | Descrição |
-|---------|-----|-----------|
-| aleffai.abckx.corp | 172.20.0.3 | Container Aleff |
-| dev04.abckx.corp | 10.10.10.1 | VPN Gateway |
-| vpn.abckx.corp | 10.10.10.1 | Alias VPN |
+| Domínio | Acesso | Descrição |
+|---------|--------|-----------|
+| https://aleffai.abckx.corp | VPN Only | Aleff AI Gateway |
+| https://dev04.abckx.corp | VPN Only | Traefik Dashboard |
+| aleff-direct.abckx.corp:18789 | VPN Only | Acesso direto (sem SSL) |
+
+### Segurança
+
+- **IPAllowList**: Apenas IPs da VPN (10.10.10.0/24) podem acessar
+- **SSL**: Certificado self-signed para *.abckx.corp
+- **Acesso público**: Completamente desativado
 
 ### Config Cliente
 
@@ -72,15 +89,21 @@ PersistentKeepalive = 25
 ```
 /opt/wireguard/
 ├── docker-compose.yml
-├── wg0.conf
+├── wg0.conf              # Inclui port forward 80/443 → Traefik
 ├── dnsmasq.conf
 ├── hosts.corp
-├── server_private.key
-├── server_public.key
-├── client_private.key
-├── client_public.key
 └── custom-cont-init.d/
     └── 10-dnsmasq
+
+/opt/traefik/
+├── traefik.yml
+├── docker-compose.yml
+├── certs/
+│   ├── abckx.corp.crt    # Cert self-signed
+│   └── abckx.corp.key
+└── dynamic/
+    ├── aleffai.yml       # Serviço Aleff
+    └── abckx-corp.yml    # Rotas VPN + IPAllowList
 ```
 
 ---
@@ -93,7 +116,6 @@ PersistentKeepalive = 25
 |------|-------|
 | Conta | aleff@iavancada.com |
 | Project ID | neural-sunup-485823-g4 |
-| Redirect URI | https://aleffai.a25.com.br/oauth/callback |
 
 ### Escopos Autorizados
 
@@ -127,21 +149,15 @@ Instalado no container via Dockerfile.
 |---------|-----------|
 | `gog calendar events --today` | Agenda do dia |
 | `gog calendar events --days 7` | Próximos 7 dias |
-| `gog calendar create --summary --from --to` | Criar evento |
-| `gog calendar create --with-meet` | Criar com Meet |
+| `gog calendar create --with-meet` | Criar evento com Meet |
 
 ### Drive (Full Access)
 
 | Comando | Descrição |
 |---------|-----------|
 | `gog drive ls` | Listar arquivos |
-| `gog drive search "query"` | Buscar |
-| `gog drive get <id>` | Baixar |
 | `gog drive mkdir "Nome"` | Criar pasta |
 | `gog drive mv <id> <folder>` | Mover |
-| `gog drive cp <id>` | Copiar |
-| `gog drive rename <id> "Nome"` | Renomear |
-| `gog drive rm <id>` | Deletar |
 | `gog drive share --anyone` | Tornar público |
 | `gog drive upload /path` | Upload |
 
@@ -154,111 +170,67 @@ Arquivos enviados via Telegram são salvos em:
 
 ---
 
-## Workflows
+## Founder Memory
 
-### Arquivo → Drive → Link Público
+### Banco de Dados
 
-```bash
-# 1. Ver arquivo recebido
-ls /home/node/.moltbot/media/inbound/
+**PostgreSQL Local** (aleff-postgres) com pgvector para embeddings.
 
-# 2. Upload para o Drive
-gog drive upload --account aleff@iavancada.com /home/node/.moltbot/media/inbound/<arquivo>
-
-# 3. Tornar público
-gog drive share --account aleff@iavancada.com <file_id> --anyone --role reader
-```
-
-### Drive → Email com Anexo
-
-```bash
-# 1. Baixar arquivo do Drive
-gog drive get --account aleff@iavancada.com <file_id>
-
-# 2. Enviar por email
-gog gmail send --account aleff@iavancada.com \
-  --to "destinatario@email.com" \
-  --subject "Arquivo" \
-  --body "Segue arquivo." \
-  --attach "./<nome_arquivo>"
-```
-
----
-
-## Variáveis de Ambiente (.env)
-
-```bash
-# Google OAuth
-GOOGLE_CLIENT_ID=552479160833-...
-GOOGLE_CLIENT_SECRET=GOCSPX-...
-GOOGLE_REFRESH_TOKEN=1//05XD5JFSoZ_sf...
-GOOGLE_ACCOUNT=aleff@iavancada.com
-
-# Transcription
-GROQ_API_KEY=gsk_...        # Primary (whisper-large-v3-turbo)
-OPENAI_API_KEY=sk-proj-...  # Fallback (whisper-1)
-
-# gog CLI
-GOG_KEYRING_PASSWORD=aleff2026secure
-
-# Supabase (Founder Memory)
-SUPABASE_URL=https://vxllqynrmwduobzcxake.supabase.co
-SUPABASE_SERVICE_KEY=<via Passbolt>
-```
-
----
-
-## Founder Memory (P0 - Pendente)
-
-### Schema Supabase
-
-Tabelas em `aleff.*`:
-- `conversations` - Sessões de chat
-- `messages` - Mensagens com embedding vector(1536)
-- `memory_index` - Fatos indexados
-- `audit_log` - Trail de auditoria
-
-### Funções
-
-- `aleff.search_memory(query_embedding, threshold, limit)`
-- `aleff.get_conversation_context(conversation_id, limit)`
+| Tabela | Descrição |
+|--------|-----------|
+| conversations | Sessões de chat |
+| messages | Mensagens com embedding vector(1536) |
+| memory_index | Fatos indexados |
+| entities | Entidades do knowledge graph |
+| facts | Fatos do knowledge graph |
+| relationships | Relacionamentos do knowledge graph |
+| audit_log | Trail de auditoria |
 
 ### Status
 
-- [x] Schema criado
-- [x] RLS configurado
-- [ ] Plugin Moltbot para persistência
-- [ ] Hook no message flow
-- [ ] Vector search ativo
+- [x] Schema PostgreSQL criado
+- [x] Plugin founder-memory carregado
+- [x] Mensagens de usuário sendo persistidas (56+)
+- [ ] Mensagens de assistant (hook pendente)
+- [ ] Vector search com embeddings
+
+### Conexão
+
+```
+DATABASE_URL=postgresql://aleff:***@postgres:5432/aleff_memory
+```
 
 ---
 
 ## Comandos Úteis
 
-### Deploy
+### Acesso via VPN
 
 ```bash
-cd /opt/aleff
-docker compose -f docker-compose.aleff.yml up -d --build
+# Testar conexão
+curl -k https://aleffai.abckx.corp/
+
+# Ver dashboard Traefik
+open https://dev04.abckx.corp
 ```
 
 ### Logs
 
 ```bash
-docker logs -f aleffai
-docker logs -f wireguard-dev04
+ssh dev-04 "docker logs -f aleffai"
+ssh dev-04 "docker logs -f wireguard-dev04"
 ```
 
 ### VPN Status
 
 ```bash
-docker exec wireguard-dev04 wg show
+ssh dev-04 "docker exec wireguard-dev04 wg show"
 ```
 
-### DNS Test
+### Founder Memory
 
 ```bash
-docker exec wireguard-dev04 nslookup aleffai.abckx.corp 10.10.10.1
+ssh dev-04 "docker exec aleff-postgres psql -U aleff -d aleff_memory -c 'SELECT COUNT(*) FROM messages;'"
 ```
 
 ---
@@ -272,6 +244,9 @@ docker exec wireguard-dev04 nslookup aleffai.abckx.corp 10.10.10.1
 | 2026-01-29 | feat | gog CLI (Gmail, Calendar, Drive) |
 | 2026-01-29 | feat | Full Drive access |
 | 2026-01-29 | feat | WireGuard VPN + DNS interno |
+| 2026-01-29 | security | Desativado acesso público |
+| 2026-01-29 | feat | HTTPS via Traefik + cert self-signed |
+| 2026-01-29 | security | IPAllowList para VPN only |
 
 ---
 
