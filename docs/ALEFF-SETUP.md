@@ -18,8 +18,8 @@ Aleff AI é o assistente pessoal do Founder, baseado no Moltbot com integração
 
 | Tipo | URL | Status |
 |------|-----|--------|
-| **VPN (Produção)** | https://aleffai.abckx.corp | ✅ Ativo |
-| **Dashboard** | https://dev04.abckx.corp | ✅ VPN Only |
+| **VPN (Produção)** | https://aleffai.abckx.corp/__moltbot__/canvas/ | ✅ Ativo |
+| **Traefik Dashboard** | https://dev04.abckx.corp | ✅ VPN Only |
 | Público | ~~https://aleffai.a25.com.br~~ | ❌ Desativado |
 | Telegram | @aleff_000_bot | ✅ Ativo |
 
@@ -37,12 +37,14 @@ Aleff AI é o assistente pessoal do Founder, baseado no Moltbot com integração
 
 ### Containers
 
-| Container | Função | Rede |
-|-----------|--------|------|
-| aleffai | Moltbot Gateway | aleff_default |
+| Container | Função | Redes |
+|-----------|--------|-------|
+| aleffai | Moltbot Gateway | aleff_default, **traefik-public** |
 | aleff-postgres | Founder Memory (pgvector) | aleff_default |
-| wireguard-dev04 | VPN + DNS | aleff_default |
+| wireguard-dev04 | VPN + DNS | aleff_default, traefik-public |
 | traefik | Reverse Proxy + SSL | traefik-public |
+
+> ⚠️ **IMPORTANTE:** O `aleffai` DEVE estar na rede `traefik-public` para que o Traefik consiga rotear o tráfego. Conecte com: `docker network connect traefik-public aleffai`
 
 ---
 
@@ -443,6 +445,7 @@ POSTGRES_DB=
 | 2026-01-29 | fix | Restaurado auth-profiles.json (Anthropic API) |
 | 2026-01-29 | fix | Corrigido PostgreSQL password (scram-sha-256) |
 | 2026-01-29 | fix | Dual mount .moltbot + .clawdbot (compatibilidade) |
+| 2026-01-29 | fix | Conectar aleffai à rede traefik-public (Bad Gateway) |
 | 2026-01-29 | docs | Documentação completa para replicação |
 
 ---
