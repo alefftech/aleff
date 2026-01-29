@@ -51,10 +51,35 @@ ALEFF = MEMÓRIA INSTITUCIONAL + AUTOMAÇÃO + INTELIGÊNCIA
 - [x] **Founder Memory** - Persistência de conversas no Supabase (PostgreSQL + pgvector)
 
 ### Em Desenvolvimento (Roadmap)
-- [ ] **Vector Search** - Busca semântica em histórico de conversas
+- [x] **Vector Search** - Busca semântica em histórico de conversas (pgvector)
+- [x] **Knowledge Graph** - Entidades, relacionamentos, fatos
 - [ ] **Supabase Queries** - Consultas naturais na fonte de verdade
 - [ ] **Pokemon Generator** - Gerar scripts de automação
 - [ ] **Safety Rails** - Aprovação humana para ações destrutivas
+
+## 🧠 Memory Architecture
+
+O Aleff usa um sistema de memória modular e **plug-and-play**.
+
+| Volume | Solução | Status |
+|--------|---------|--------|
+| **< 400 msgs/dia** | `founder-memory` (PostgreSQL + pgvector) | ✅ Atual |
+| **> 400 msgs/dia** | `mem0` + Qdrant + Neo4j | 📋 Documentado |
+
+**Importante:** Para clientes com alto volume de mensagens, migrar para mem0.
+
+📚 **Documentação completa:** [docs/MEMORY-ARCHITECTURE.md](docs/MEMORY-ARCHITECTURE.md)
+
+### Kit de Deploy
+
+```
+KIT POR AGENT (Básico):     KIT POR SERVER (Infra):
+├── moltbot                 ├── traefik (proxy + SSL)
+├── postgresql + pgvector   ├── wireguard (VPN)
+└── [qdrant + neo4j]*       └── dnsmasq (DNS interno)
+
+* Adicionar quando > 400 msgs/dia
+```
 
 ## 🛠️ Skills Disponíveis
 
