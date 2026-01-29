@@ -58,6 +58,64 @@ VALOR PARA CLIENTES:
 
 ---
 
+## 🔒 SEGURANÇA: PRIORIDADE #1
+
+**Segurança hoje em dia é #1. Sem exceção.**
+
+### Regras Absolutas
+
+```
+1. SECRETS NUNCA NO CÓDIGO
+   ├── Tokens, API keys → .env (não commitado)
+   ├── .env SEMPRE no .gitignore
+   └── NUNCA hardcode de credentials
+
+2. PATCHES DE SEGURANÇA = IMEDIATO
+   ├── Upstream lançou fix security? → MERGE HOJE
+   ├── Não esperar "momento ideal"
+   └── Segurança > Features
+
+3. ACESSO RESTRITO
+   ├── Portas públicas = MÍNIMO necessário
+   ├── VPN para tudo interno
+   └── Audit log de acessos
+
+4. AUDIT TRAIL
+   ├── Quem acessou o quê, quando
+   ├── Logs estruturados
+   └── Retenção mínima 90 dias
+```
+
+### Checklist Segurança
+
+```bash
+# Verificar secrets expostos
+grep -rn "sk-ant\|sk-proj\|ghp_\|gsk_" --include="*.ts" --include="*.js" app/
+
+# Verificar .env no git
+git ls-files | grep -E "^\.env$|\.env\."
+
+# Verificar portas expostas
+docker ps --format "{{.Ports}}" | grep "0.0.0.0"
+
+# Sync security patches upstream
+git fetch upstream
+git log HEAD..upstream/main --oneline | grep -i security
+```
+
+### Resposta a Incidentes
+
+```
+INCIDENTE DE SEGURANÇA:
+1. PARAR o bleeding (desligar se necessário)
+2. PRESERVAR evidências (logs)
+3. ESCALAR imediatamente (CTO → CEO)
+4. DOCUMENTAR timeline
+5. POST-MORTEM obrigatório
+```
+
+---
+
 ## 🔥 CULTURA: NADA MORRE
 
 ```
