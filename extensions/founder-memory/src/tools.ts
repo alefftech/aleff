@@ -20,7 +20,21 @@ import {
 // IMPORTANT: Usar "parameters" (não "inputSchema") para compatibilidade com
 // @mariozechner/pi-ai que espera tool.parameters.properties
 // Bug fix: 2026-01-29 - "Cannot read properties of undefined (reading 'properties')"
+// Bug fix: 2026-01-29 - Added defensive param validation to prevent undefined errors
 // ============================================================================
+
+// Helper para validar parâmetros obrigatórios
+function validateRequiredParams<T extends Record<string, unknown>>(
+  params: T,
+  required: (keyof T)[]
+): { valid: true } | { valid: false; error: string } {
+  for (const key of required) {
+    if (params[key] === undefined || params[key] === null) {
+      return { valid: false, error: `Missing required parameter: ${String(key)}` };
+    }
+  }
+  return { valid: true };
+}
 
 /**
  * Tool for agent to explicitly save important information to memory
@@ -68,6 +82,12 @@ export function createSaveToMemoryTool(): AnyAgentTool {
       importance?: number;
       tags?: string[];
     }) {
+      // Defensive validation
+      const validation = validateRequiredParams(params, ["content", "category", "name"]);
+      if (!validation.valid) {
+        return { success: false, error: validation.error };
+      }
+
       if (!isPostgresConfigured()) {
         return {
           success: false,
@@ -124,6 +144,12 @@ export function createSearchMemoryTool(): AnyAgentTool {
       required: ["query"],
     },
     async execute(params: { query: string; limit?: number }) {
+      // Defensive validation
+      const validation = validateRequiredParams(params, ["query"]);
+      if (!validation.valid) {
+        return { success: false, error: validation.error, memories: [] };
+      }
+
       if (!isPostgresConfigured()) {
         return {
           success: false,
@@ -183,6 +209,12 @@ export function createVectorSearchTool(): AnyAgentTool {
       required: ["query"],
     },
     async execute(params: { query: string; limit?: number; threshold?: number }) {
+      // Defensive validation
+      const validation = validateRequiredParams(params, ["query"]);
+      if (!validation.valid) {
+        return { success: false, error: validation.error, memories: [] };
+      }
+
       if (!isPostgresConfigured()) {
         return {
           success: false,
@@ -291,6 +323,12 @@ export function createKnowledgeGraphTool(): AnyAgentTool {
       required: ["entity"],
     },
     async execute(params: { entity: string; include_facts?: boolean }) {
+      // Defensive validation
+      const validation = validateRequiredParams(params, ["entity"]);
+      if (!validation.valid) {
+        return { success: false, error: validation.error };
+      }
+
       if (!isPostgresConfigured()) {
         return {
           success: false,
@@ -359,6 +397,12 @@ export function createFindConnectionTool(): AnyAgentTool {
       required: ["from", "to"],
     },
     async execute(params: { from: string; to: string }) {
+      // Defensive validation
+      const validation = validateRequiredParams(params, ["from", "to"]);
+      if (!validation.valid) {
+        return { success: false, error: validation.error };
+      }
+
       if (!isPostgresConfigured()) {
         return {
           success: false,
@@ -442,6 +486,12 @@ export function createLearnFactTool(): AnyAgentTool {
       fact: string;
       confidence?: number;
     }) {
+      // Defensive validation - this was causing "Cannot read properties of undefined (reading 'toUpperCase')"
+      const validation = validateRequiredParams(params, ["about", "type", "fact"]);
+      if (!validation.valid) {
+        return { success: false, error: validation.error };
+      }
+
       if (!isPostgresConfigured()) {
         return {
           success: false,
