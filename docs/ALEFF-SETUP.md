@@ -10,6 +10,8 @@
 
 Aleff AI é o assistente pessoal do Founder, baseado no Moltbot com integração completa ao Google Workspace. Acesso exclusivo via VPN privada com SSL.
 
+**Este documento serve como template para deploy de novos agentes na empresa.**
+
 ---
 
 ## Acesso
@@ -37,10 +39,111 @@ Aleff AI é o assistente pessoal do Founder, baseado no Moltbot com integração
 
 | Container | Função | Rede |
 |-----------|--------|------|
-| aleffai | Moltbot Gateway | 172.20.0.3 |
-| aleff-postgres | Founder Memory (pgvector) | 172.20.0.x |
-| wireguard-dev04 | VPN + DNS | 10.10.10.1 |
-| traefik | Reverse Proxy + SSL | 172.21.0.2 |
+| aleffai | Moltbot Gateway | aleff_default |
+| aleff-postgres | Founder Memory (pgvector) | aleff_default |
+| wireguard-dev04 | VPN + DNS | aleff_default |
+| traefik | Reverse Proxy + SSL | traefik-public |
+
+---
+
+## Deploy do Container
+
+### Script de Deploy
+
+Arquivo: `/home/devuser/Desktop/abckx/aleff/run-aleffai.sh`
+
+```bash
+#!/bin/bash
+# Carregar variáveis do .env
+source .env
+
+docker run -d \
+  --name aleffai \
+  --restart unless-stopped \
+  --network aleff_default \
+  -p 18789:18789 \
+  # IMPORTANTE: Montar AMBOS os paths para compatibilidade
+  -v /path/to/data:/home/node/.moltbot:rw \
+  -v /path/to/data:/home/node/.clawdbot:rw \
+  -v /path/to/gogcli:/home/node/.config/gogcli:rw \
+  -e HOME=/home/node \
+  -e NODE_ENV=production \
+  # ... env vars ...
+  aleff:latest \
+  node dist/index.js gateway --bind lan --port 18789
+```
+
+### Volume Mounts (CRÍTICO)
+
+| Mount | Path Container | Descrição |
+|-------|----------------|-----------|
+| data → .moltbot | `/home/node/.moltbot` | Config principal, sessions, auth |
+| data → .clawdbot | `/home/node/.clawdbot` | **Alias obrigatório** (compatibilidade) |
+| gogcli | `/home/node/.config/gogcli` | Google OAuth tokens |
+
+> ⚠️ **IMPORTANTE:** O container precisa de AMBOS os mounts (`.moltbot` e `.clawdbot`) apontando para o mesmo diretório. O Moltbot usa paths diferentes dependendo do contexto.
+
+### Estrutura de Dados
+
+```
+data/
+├── agents/
+│   └── aleff/
+│       └── agent/
+│           └── auth-profiles.json  # ⚠️ Anthropic API key
+├── moltbot.json                    # Config do gateway
+├── sessions/                       # Sessões ativas
+├── telegram/                       # Estado do Telegram
+└── media/
+    └── inbound/                    # Arquivos recebidos
+```
+
+---
+
+## Autenticação
+
+### Anthropic API (Claude Max)
+
+A chave da Anthropic é armazenada no auth-profiles.json do agent:
+
+```
+/home/node/.moltbot/agents/<agent_id>/agent/auth-profiles.json
+```
+
+**Formato:**
+```json
+{
+  "version": 1,
+  "profiles": {
+    "claude-max": {
+      "type": "token",
+      "provider": "anthropic",
+      "token": "sk-ant-oat01-..."
+    }
+  }
+}
+```
+
+> ⚠️ **NUNCA commitar este arquivo.** Contém credenciais sensíveis.
+
+### Criar auth-profiles.json
+
+```bash
+# Dentro do container ou no diretório montado
+mkdir -p data/agents/<agent_id>/agent
+cat > data/agents/<agent_id>/agent/auth-profiles.json << 'EOF'
+{
+  "version": 1,
+  "profiles": {
+    "claude-max": {
+      "type": "token",
+      "provider": "anthropic",
+      "token": "SUA_API_KEY_AQUI"
+    }
+  }
+}
+EOF
+```
 
 ---
 
@@ -69,7 +172,7 @@ SSL: Traefik com cert self-signed *.abckx.corp
 - **SSL**: Certificado self-signed para *.abckx.corp
 - **Acesso público**: Completamente desativado
 
-### Config Cliente
+### Config Cliente WireGuard
 
 ```ini
 [Interface]
@@ -84,14 +187,14 @@ AllowedIPs = 10.10.10.0/24, 172.20.0.0/24
 PersistentKeepalive = 25
 ```
 
-### Arquivos VPN
+### Arquivos VPN (Server)
 
 ```
 /opt/wireguard/
 ├── docker-compose.yml
-├── wg0.conf              # Inclui port forward 80/443 → Traefik
+├── wg0.conf              # PostUp inclui port forward 80/443 → Traefik
 ├── dnsmasq.conf
-├── hosts.corp
+├── hosts.corp            # DNS interno *.abckx.corp
 └── custom-cont-init.d/
     └── 10-dnsmasq
 
@@ -128,7 +231,7 @@ PersistentKeepalive = 25
 
 ### CLI: gog v0.9.0
 
-Instalado no container via Dockerfile.
+Instalado no container via Dockerfile. Tokens armazenados em `/home/node/.config/gogcli/`.
 
 ---
 
@@ -190,9 +293,10 @@ Arquivos enviados via Telegram são salvos em:
 
 - [x] Schema PostgreSQL criado
 - [x] Plugin founder-memory carregado
-- [x] Mensagens de usuário sendo persistidas (56+)
+- [x] Mensagens de usuário sendo persistidas (57+)
 - [ ] Mensagens de assistant (hook pendente)
 - [ ] Vector search com embeddings
+- [ ] Knowledge graph queries
 
 ### Conexão
 
@@ -202,31 +306,43 @@ DATABASE_URL=postgresql://aleff:***@postgres:5432/aleff_memory
 
 ---
 
-## Autenticação
+## Troubleshooting
 
-### Anthropic API (Claude Max)
+### Erro: "No API key found for provider anthropic"
 
-A chave da Anthropic é armazenada no auth-profiles.json do agent:
+**Causa:** auth-profiles.json não existe ou está no path errado.
 
-```
-/home/node/.moltbot/agents/aleff/agent/auth-profiles.json
-```
+**Solução:**
+```bash
+# Verificar se existe em AMBOS os paths
+docker exec aleffai cat /home/node/.moltbot/agents/aleff/agent/auth-profiles.json
+docker exec aleffai cat /home/node/.clawdbot/agents/aleff/agent/auth-profiles.json
 
-**Formato:**
-```json
-{
-  "version": 1,
-  "profiles": {
-    "claude-max": {
-      "type": "token",
-      "provider": "anthropic",
-      "token": "sk-ant-oat01-..."
-    }
-  }
-}
+# Se não existir, criar no diretório de dados (fora do container)
+mkdir -p data/agents/aleff/agent
+# Criar auth-profiles.json com a API key
 ```
 
-> **IMPORTANTE:** Este arquivo contém credenciais sensíveis e NÃO deve ser commitado.
+### Erro: "password authentication failed for user aleff"
+
+**Causa:** PostgreSQL usando scram-sha-256 e senha não foi setada corretamente.
+
+**Solução:**
+```bash
+docker exec aleff-postgres psql -U aleff -d aleff_memory -c "ALTER USER aleff WITH PASSWORD 'sua_senha';"
+```
+
+### Container reiniciando em loop
+
+**Verificar:**
+```bash
+docker logs aleffai --tail 50
+```
+
+**Causas comuns:**
+- Falta de API key
+- Erro de conexão com PostgreSQL
+- moltbot.json inválido
 
 ---
 
@@ -258,7 +374,56 @@ ssh dev-04 "docker exec wireguard-dev04 wg show"
 ### Founder Memory
 
 ```bash
+# Contar mensagens
 ssh dev-04 "docker exec aleff-postgres psql -U aleff -d aleff_memory -c 'SELECT COUNT(*) FROM messages;'"
+
+# Ver últimas mensagens
+ssh dev-04 "docker exec aleff-postgres psql -U aleff -d aleff_memory -c 'SELECT role, LEFT(content, 50), created_at FROM messages ORDER BY created_at DESC LIMIT 5;'"
+```
+
+### Restart Container
+
+```bash
+ssh dev-04 "docker restart aleffai"
+# ou
+ssh dev-04 "cd /home/devuser/Desktop/abckx/aleff && source .env && ./run-aleffai.sh"
+```
+
+---
+
+## Replicando para Novo Projeto
+
+### Checklist
+
+1. [ ] Criar server (Hetzner CCX13 recomendado)
+2. [ ] Instalar Docker + Docker Compose
+3. [ ] Clonar repo do Moltbot/Aleff
+4. [ ] Criar `.env` com todas as variáveis
+5. [ ] Criar `data/agents/<id>/agent/auth-profiles.json`
+6. [ ] Configurar PostgreSQL (se usar Founder Memory)
+7. [ ] Configurar WireGuard (se VPN only)
+8. [ ] Configurar Traefik (se SSL)
+9. [ ] Rodar `./run-aleffai.sh`
+10. [ ] Testar via Telegram
+
+### Variáveis Obrigatórias
+
+```bash
+# API Keys
+OPENAI_API_KEY=          # Embeddings, fallback
+GROQ_API_KEY=            # Transcription
+
+# Google OAuth (se usar)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REFRESH_TOKEN=
+GOOGLE_ACCOUNT=
+
+# Founder Memory (se usar)
+DATABASE_URL=
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+POSTGRES_DB=
 ```
 
 ---
@@ -277,6 +442,8 @@ ssh dev-04 "docker exec aleff-postgres psql -U aleff -d aleff_memory -c 'SELECT 
 | 2026-01-29 | security | IPAllowList para VPN only |
 | 2026-01-29 | fix | Restaurado auth-profiles.json (Anthropic API) |
 | 2026-01-29 | fix | Corrigido PostgreSQL password (scram-sha-256) |
+| 2026-01-29 | fix | Dual mount .moltbot + .clawdbot (compatibilidade) |
+| 2026-01-29 | docs | Documentação completa para replicação |
 
 ---
 
