@@ -36,6 +36,10 @@ function validateRequiredParams<T extends Record<string, unknown>>(
   return { valid: true };
 }
 
+// IMPORTANT: Tool execute signature must match pi-tool-definition-adapter expectations:
+// execute(toolCallId: string, params: T, signal?: AbortSignal, onUpdate?: callback)
+// The adapter passes 4 args, so we need to accept them even if we don't use all.
+
 /**
  * Tool for agent to explicitly save important information to memory
  */
@@ -75,15 +79,18 @@ export function createSaveToMemoryTool(): AnyAgentTool {
       },
       required: ["content", "category", "name"],
     },
-    async execute(params: {
-      content: string;
-      category: string;
-      name: string;
-      importance?: number;
-      tags?: string[];
-    }) {
+    async execute(
+      _toolCallId: string,
+      params: {
+        content: string;
+        category: string;
+        name: string;
+        importance?: number;
+        tags?: string[];
+      }
+    ) {
       // Defensive validation
-      const validation = validateRequiredParams(params, ["content", "category", "name"]);
+      const validation = validateRequiredParams(params ?? {}, ["content", "category", "name"]);
       if (!validation.valid) {
         return { success: false, error: validation.error };
       }
@@ -143,9 +150,9 @@ export function createSearchMemoryTool(): AnyAgentTool {
       },
       required: ["query"],
     },
-    async execute(params: { query: string; limit?: number }) {
+    async execute(_toolCallId: string, params: { query: string; limit?: number }) {
       // Defensive validation
-      const validation = validateRequiredParams(params, ["query"]);
+      const validation = validateRequiredParams(params ?? {}, ["query"]);
       if (!validation.valid) {
         return { success: false, error: validation.error, memories: [] };
       }
@@ -208,9 +215,9 @@ export function createVectorSearchTool(): AnyAgentTool {
       },
       required: ["query"],
     },
-    async execute(params: { query: string; limit?: number; threshold?: number }) {
+    async execute(_toolCallId: string, params: { query: string; limit?: number; threshold?: number }) {
       // Defensive validation
-      const validation = validateRequiredParams(params, ["query"]);
+      const validation = validateRequiredParams(params ?? {}, ["query"]);
       if (!validation.valid) {
         return { success: false, error: validation.error, memories: [] };
       }
@@ -265,7 +272,10 @@ export function createGetContextTool(): AnyAgentTool {
       },
     },
     async execute(
+      _toolCallId: string,
       params: { limit?: number },
+      _signal?: AbortSignal,
+      _onUpdate?: unknown,
       ctx?: { sessionKey?: string; messageChannel?: string },
     ) {
       if (!isPostgresConfigured()) {
@@ -322,9 +332,9 @@ export function createKnowledgeGraphTool(): AnyAgentTool {
       },
       required: ["entity"],
     },
-    async execute(params: { entity: string; include_facts?: boolean }) {
+    async execute(_toolCallId: string, params: { entity: string; include_facts?: boolean }) {
       // Defensive validation
-      const validation = validateRequiredParams(params, ["entity"]);
+      const validation = validateRequiredParams(params ?? {}, ["entity"]);
       if (!validation.valid) {
         return { success: false, error: validation.error };
       }
@@ -396,9 +406,9 @@ export function createFindConnectionTool(): AnyAgentTool {
       },
       required: ["from", "to"],
     },
-    async execute(params: { from: string; to: string }) {
+    async execute(_toolCallId: string, params: { from: string; to: string }) {
       // Defensive validation
-      const validation = validateRequiredParams(params, ["from", "to"]);
+      const validation = validateRequiredParams(params ?? {}, ["from", "to"]);
       if (!validation.valid) {
         return { success: false, error: validation.error };
       }
@@ -480,14 +490,17 @@ export function createLearnFactTool(): AnyAgentTool {
       },
       required: ["about", "type", "fact"],
     },
-    async execute(params: {
-      about: string;
-      type: FactType;
-      fact: string;
-      confidence?: number;
-    }) {
+    async execute(
+      _toolCallId: string,
+      params: {
+        about: string;
+        type: FactType;
+        fact: string;
+        confidence?: number;
+      }
+    ) {
       // Defensive validation - this was causing "Cannot read properties of undefined (reading 'toUpperCase')"
-      const validation = validateRequiredParams(params, ["about", "type", "fact"]);
+      const validation = validateRequiredParams(params ?? {}, ["about", "type", "fact"]);
       if (!validation.valid) {
         return { success: false, error: validation.error };
       }
