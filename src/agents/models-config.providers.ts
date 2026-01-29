@@ -75,6 +75,23 @@ const OLLAMA_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+// ANCHOR: deepseek-provider-constants
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
+const DEEPSEEK_DEFAULT_CONTEXT_WINDOW = 64000;
+const DEEPSEEK_DEFAULT_MAX_TOKENS = 8192;
+const DEEPSEEK_CHAT_COST = {
+  input: 0.14, // $0.14 per 1M tokens (cache miss)
+  output: 0.28, // $0.28 per 1M tokens
+  cacheRead: 0.014, // $0.014 per 1M tokens (cache hit)
+  cacheWrite: 0.14,
+};
+const DEEPSEEK_REASONER_COST = {
+  input: 0.55, // $0.55 per 1M tokens (cache miss)
+  output: 2.19, // $2.19 per 1M tokens
+  cacheRead: 0.14, // $0.14 per 1M tokens (cache hit)
+  cacheWrite: 0.55,
+};
+
 interface OllamaModel {
   name: string;
   modified_at: string;
@@ -359,6 +376,43 @@ async function buildOllamaProvider(): Promise<ProviderConfig> {
   };
 }
 
+// ANCHOR: deepseek-provider-builder
+function buildDeepSeekProvider(): ProviderConfig {
+  return {
+    baseUrl: DEEPSEEK_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: "deepseek-chat",
+        name: "DeepSeek Chat",
+        reasoning: false,
+        input: ["text"],
+        cost: DEEPSEEK_CHAT_COST,
+        contextWindow: DEEPSEEK_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: DEEPSEEK_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "deepseek-coder",
+        name: "DeepSeek Coder",
+        reasoning: false,
+        input: ["text"],
+        cost: DEEPSEEK_CHAT_COST,
+        contextWindow: DEEPSEEK_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: DEEPSEEK_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "deepseek-reasoner",
+        name: "DeepSeek Reasoner (R1)",
+        reasoning: true,
+        input: ["text"],
+        cost: DEEPSEEK_REASONER_COST,
+        contextWindow: DEEPSEEK_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: DEEPSEEK_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
 export async function resolveImplicitProviders(params: {
   agentDir: string;
 }): Promise<ModelsConfig["providers"]> {
@@ -416,6 +470,14 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "ollama", store: authStore });
   if (ollamaKey) {
     providers.ollama = { ...(await buildOllamaProvider()), apiKey: ollamaKey };
+  }
+
+  // ANCHOR: deepseek-implicit-provider
+  const deepseekKey =
+    resolveEnvApiKeyVarName("deepseek") ??
+    resolveApiKeyFromProfiles({ provider: "deepseek", store: authStore });
+  if (deepseekKey) {
+    providers.deepseek = { ...buildDeepSeekProvider(), apiKey: deepseekKey };
   }
 
   return providers;

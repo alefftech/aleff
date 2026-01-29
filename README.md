@@ -23,6 +23,7 @@ ALEFF = MEMÓRIA INSTITUCIONAL + AUTOMAÇÃO + INTELIGÊNCIA
 | **Gateway** | ✅ Running | https://aleffai.a25.com.br |
 | **Telegram** | ✅ Connected | @aleff_000_bot |
 | **Claude Max** | ✅ Authenticated | via setup-token (OAuth) |
+| **Multi-LLM** | ✅ Configured | Claude + DeepSeek + Ollama (fallback) |
 | **Supabase** | ✅ Schema ready | aleff.* + acesso a founder_* |
 | **Auto-start** | ✅ Enabled | systemd on dev-04 |
 | **Google OAuth** | ✅ Configured | aleff@iavancada.com (Gmail, Calendar) |
@@ -42,6 +43,7 @@ ALEFF = MEMÓRIA INSTITUCIONAL + AUTOMAÇÃO + INTELIGÊNCIA
 ### Já Funcionando
 - [x] Responder via Telegram (@aleff_000_bot)
 - [x] Usar Claude Opus 4.5 (Max subscription)
+- [x] **Multi-LLM** - DeepSeek (99% cheaper), Ollama (local), fallback automático
 - [x] Rodar 24/7 no dev-04
 - [x] GUI pública em https://aleffai.a25.com.br
 - [x] Transcrição de áudio (Groq + OpenAI fallback)

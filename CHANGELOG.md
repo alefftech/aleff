@@ -2,6 +2,90 @@
 
 Docs: https://docs.molt.bot
 
+## 2026.1.29 (Part 3) - Multi-LLM Plug-and-Play System
+
+**Date:** 2026-01-29
+**Session:** Implement multi-LLM provider system with DeepSeek and fallback
+**Author:** CTO Ronald + Claude Code (Opus 4.5)
+
+### Summary
+
+Implemented multi-LLM plug-and-play system enabling 99% cost savings with DeepSeek while maintaining Claude quality via automatic fallback.
+
+### Added
+
+**DeepSeek Provider (Native)**
+- `deepseek/deepseek-chat` - General conversation ($0.14/1M input, 99% cheaper than Claude)
+- `deepseek/deepseek-coder` - Code generation
+- `deepseek/deepseek-reasoner` - Complex reasoning (R1 model)
+
+**Model Switching Script**
+- `scripts/switch-model.sh` - Quick model switching with presets:
+  - `cheap` - DeepSeek Chat (99% savings)
+  - `best` - Claude Opus 4.5 (highest quality)
+  - `fast` - Claude Haiku 3.5 (quick responses)
+  - `local` - Ollama (free, offline)
+  - `think` - DeepSeek Reasoner (R1)
+  - `fallback` - Enable full fallback chain
+  - `status` - Show current configuration
+
+**Automatic Fallback Chain**
+```
+Claude Opus 4.5 → OpenRouter Claude Sonnet → DeepSeek Chat → Ollama Local
+```
+
+**Documentation**
+- `docs/providers/deepseek.md` - DeepSeek setup and pricing
+- `docs/providers/multi-llm-guide.md` - Complete multi-LLM configuration guide
+
+### Changed
+
+| File | Change |
+|------|--------|
+| `src/agents/model-auth.ts:289` | Added `deepseek: "DEEPSEEK_API_KEY"` to envMap |
+| `src/agents/models-config.providers.ts:78` | Added DeepSeek constants and cost config |
+| `src/agents/models-config.providers.ts:379` | Added `buildDeepSeekProvider()` function |
+| `src/agents/models-config.providers.ts:475` | Added DeepSeek to `resolveImplicitProviders()` |
+| `data/moltbot.json` | Added model fallback config with aliases |
+
+### Technical Details
+
+**ANCHOR Comments Added:**
+- `ANCHOR: env-api-key-map` (model-auth.ts:272)
+- `ANCHOR: deepseek-env-map` (model-auth.ts:289)
+- `ANCHOR: deepseek-provider-constants` (models-config.providers.ts:78)
+- `ANCHOR: deepseek-provider-builder` (models-config.providers.ts:379)
+- `ANCHOR: deepseek-implicit-provider` (models-config.providers.ts:475)
+- `ANCHOR: switch-model-script` (scripts/switch-model.sh:2)
+
+**Environment Variables:**
+- `DEEPSEEK_API_KEY` - Required for DeepSeek models
+
+**Cost Comparison:**
+| Provider | Input (1M) | Output (1M) | Savings |
+|----------|------------|-------------|---------|
+| Claude Opus 4.5 | $15.00 | $75.00 | baseline |
+| DeepSeek Chat | $0.14 | $0.28 | **99%** |
+| DeepSeek Reasoner | $0.55 | $2.19 | 96% |
+| Ollama | $0.00 | $0.00 | 100% |
+
+### Usage
+
+```bash
+# Switch to cheap mode (DeepSeek)
+./scripts/switch-model.sh cheap
+docker restart aleffai
+
+# Enable fallback chain
+./scripts/switch-model.sh fallback
+docker restart aleffai
+
+# Check current status
+./scripts/switch-model.sh status
+```
+
+---
+
 ## 2026.1.29 (Part 2) - Summarize, Apify, Google Contacts
 
 **Date:** 2026-01-29 (continued session)

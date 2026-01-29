@@ -269,6 +269,7 @@ export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
     return pick("QWEN_OAUTH_TOKEN") ?? pick("QWEN_PORTAL_API_KEY");
   }
 
+  // ANCHOR: env-api-key-map
   const envMap: Record<string, string> = {
     openai: "OPENAI_API_KEY",
     google: "GEMINI_API_KEY",
@@ -285,6 +286,7 @@ export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
     venice: "VENICE_API_KEY",
     mistral: "MISTRAL_API_KEY",
     opencode: "OPENCODE_API_KEY",
+    deepseek: "DEEPSEEK_API_KEY", // ANCHOR: deepseek-env-map
   };
   const envVar = envMap[normalized];
   if (!envVar) return null;
