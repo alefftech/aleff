@@ -2,6 +2,158 @@
 
 Docs: https://docs.molt.bot
 
+## 2026.1.29 (Part 2) - Summarize, Apify, Google Contacts
+
+**Date:** 2026-01-29 (continued session)
+**Session:** Add web intelligence and contacts management skills
+**Author:** CTO Ronald + Claude Code
+
+### 🎯 Summary
+
+Completed user requests: activated summarize skill, created apify web scraping skill, enabled Google Contacts API integration. Aleff now has comprehensive web intelligence and CRM integration capabilities.
+
+### ✅ New Skills Added (3)
+
+**1. summarize** (`@steipete/summarize` v0.10.0)
+- Summarize URLs, YouTube videos, podcasts, and PDFs
+- Uses AI (Gemini Flash or GPT) for intelligent summaries
+- Auto-detects media type (video/audio vs page content)
+- YouTube transcript extraction without yt-dlp
+- CLI themed output with progress indicators
+- Installed via npm in Dockerfile
+
+**2. apify** (Web scraping platform integration)
+- **LinkedIn**: Profile scraper, post scraper, company scraper
+- **Google Maps**: Business listings with reviews
+- **Instagram**: Profile & hashtag scrapers
+- **YouTube**: Channel & video metadata scraper
+- **Twitter/X**: Tweet & profile scraper
+- **Use cases by team**:
+  - IAVANCADA: Lead enrichment, competitor monitoring
+  - AGILCONTRATOS: Legal market intelligence
+  - MENTORINGBASE: Competitor research, content analysis
+  - CFO: Pricing research, market sizing
+- Requires: `APIFY_API_TOKEN` env var
+- Integration examples with Aleff automation
+
+**3. gog-contacts** (Google Contacts API)
+- Full CRUD operations: create, read, update, delete contacts
+- Contact groups management
+- Workspace directory search
+- CRM sync with Supabase integration examples
+- **Holding use cases**:
+  - IAVANCADA: Client contact management, deal tracking
+  - AGILCONTRATOS: Lawyer network, partner contacts
+  - MENTORINGBASE: Mentor profiles database
+  - CFO: Finance contacts (accountants, auditors)
+- Bulk import/export (CSV/JSON)
+- Automation examples: follow-up reminders, onboarding flows
+- OAuth scopes: contacts, contacts.other.readonly, directory.readonly
+
+### 📝 Documentation Updates
+
+**README.md**:
+- Skills count updated: 13+ → 18+
+- Added new sections: "Automação Web & Scraping", "Google Workspace"
+- Documented all new skills with emojis and descriptions
+- Updated total: 56 bundled + 6 customized skills
+
+**CLAUDE.md** (Aleff's instructions):
+- Updated Google Workspace section to reflect gog CLI availability
+- Removed outdated warning about gog not being installed
+- Added full gog capabilities: Gmail, Calendar, Contacts, Drive
+- Updated Skills section with all new tools
+- Added instructions to always read SKILL.md before using skills
+
+**Dockerfile**:
+- Fixed summarize installation: tar.gz → npm package
+- Cleaner approach using `npm install -g @steipete/summarize`
+
+### 🔧 Technical Details
+
+**Docker Build**:
+- Image size: ~2.5GB (includes Playwright browsers)
+- Build time: ~5 minutes
+- All skills verified working in container
+
+**Skills Documentation Format**:
+- YAML frontmatter with metadata
+- Markdown content with examples
+- Holding-specific use cases
+- Integration patterns documented
+
+**Git Commits**:
+1. Previous session comprehensive summary
+2. feat(skills): add summarize, apify, gog-contacts + update docs
+
+### 📊 Metrics
+
+**Skills Added**: 3 major skills (summarize, apify, gog-contacts)
+**Documentation**: ~450 lines (2 new SKILL.md files)
+**Files Modified**: 3 (Dockerfile, README.md, CLAUDE.md)
+**Total Active Skills**: 18+ documented and functional
+
+### 🎁 What Aleff Can Do Now
+
+**Web Intelligence**:
+- Summarize any URL or YouTube video
+- Scrape LinkedIn profiles for lead enrichment
+- Extract Google Maps business data
+- Monitor Instagram/Twitter for brand mentions
+
+**CRM & Contacts**:
+- Sync Google Contacts with Supabase
+- Auto-enrich contacts from LinkedIn (apify + gog)
+- Track client relationships and follow-ups
+- Manage contact groups by team/status
+
+**Example Workflows**:
+
+1. **Lead Enrichment Pipeline**:
+   ```bash
+   # Scrape LinkedIn profile
+   apify linkedin-profile → data.json
+   # Create Google Contact
+   gog contacts create --from data.json
+   # Sync to Supabase CRM
+   psql $DATABASE_URL < sync-crm.sql
+   ```
+
+2. **Competitive Intelligence**:
+   ```bash
+   # Summarize competitor blog
+   summarize "https://competitor.com/blog"
+   # Scrape their social media
+   apify instagram-profile "competitor"
+   # Generate report
+   aleff generate-report competitor-analysis.md
+   ```
+
+3. **Content Research**:
+   ```bash
+   # Summarize YouTube video
+   summarize "https://youtu.be/..." --extract-only
+   # Extract key points
+   aleff meeting-notes transcribe summary.txt
+   ```
+
+### 🚀 Next Steps (Pending)
+
+User requested these for next session:
+1. ✅ Summarize - DONE
+2. ✅ Google Contacts - DONE
+3. ✅ Apify skill - DONE
+4. ⏳ Remotion-dev examples and templates (already documented, needs testing)
+
+### 🔗 Resources
+
+- **Apify Store**: https://apify.com/store
+- **Summarize**: https://github.com/steipete/summarize
+- **gogcli**: https://github.com/steipete/gogcli
+- **Skills Docs**: `/mnt/HC_Volume_104508618/abckx/aleff/skills/`
+
+---
+
 ## 2026.1.29 - Aleff Custom Skills & Productivity Tools
 
 **Date:** 2026-01-29
