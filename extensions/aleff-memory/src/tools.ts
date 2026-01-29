@@ -15,6 +15,7 @@ import { type AnyAgentTool, jsonResult } from "../../../src/agents/tools/common.
 import { saveToMemoryIndex, searchMessages, getConversationContext, vectorSearch } from "./persist.js";
 import { isPostgresConfigured } from "./postgres.js";
 import { logger } from "./logger.js";
+import { generateEmbedding } from "./embeddings.js";
 import {
   upsertEntity,
   findEntity,
@@ -538,13 +539,15 @@ export function createLearnFactTool(): AnyAgentTool {
         });
       }
 
-      // 1. Find or create the main entity
+      // 1. Find or create the main entity (with embedding for semantic search)
       let entity = await findEntity(params.about);
       if (!entity) {
         const entityType = inferEntityType(params.about);
+        const entityEmbedding = await generateEmbedding(params.about);
         entity = await upsertEntity({
           type: entityType,
           name: params.about,
+          embedding: entityEmbedding || undefined,
         });
 
         if (!entity) {
@@ -553,15 +556,17 @@ export function createLearnFactTool(): AnyAgentTool {
             error: `Failed to create entity "${params.about}"`,
           });
         }
-        logger.info({ name: params.about, type: entityType }, "entity_created");
+        logger.info({ name: params.about, type: entityType, hasEmbedding: !!entityEmbedding }, "entity_created");
       }
 
-      // 2. Save the fact
+      // 2. Save the fact (with embedding for semantic search)
+      const factEmbedding = await generateEmbedding(params.fact);
       const factRecord = await addFact({
         entity: params.about,
         type: params.type,
         content: params.fact,
         confidence: params.confidence,
+        embedding: factEmbedding || undefined,
       });
 
       if (!factRecord) {
@@ -576,16 +581,18 @@ export function createLearnFactTool(): AnyAgentTool {
       let relationshipsCreated = 0;
 
       for (const rel of extractedRels) {
-        // Find or create the related entity
+        // Find or create the related entity (with embedding)
         let relatedEntity = await findEntity(rel.target);
         if (!relatedEntity) {
           const relatedType = inferEntityType(rel.target);
+          const relatedEmbedding = await generateEmbedding(rel.target);
           relatedEntity = await upsertEntity({
             type: relatedType,
             name: rel.target,
+            embedding: relatedEmbedding || undefined,
           });
           if (relatedEntity) {
-            logger.info({ name: rel.target, type: relatedType }, "related_entity_created");
+            logger.info({ name: rel.target, type: relatedType, hasEmbedding: !!relatedEmbedding }, "related_entity_created");
           }
         }
 
