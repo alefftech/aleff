@@ -13,6 +13,15 @@ import {
   type FactType
 } from "./knowledge-graph.js";
 
+// ============================================================================
+// ANCHOR: FOUNDER-MEMORY-TOOLS
+// Tools para memória institucional do Aleff
+//
+// IMPORTANT: Usar "parameters" (não "inputSchema") para compatibilidade com
+// @mariozechner/pi-ai que espera tool.parameters.properties
+// Bug fix: 2026-01-29 - "Cannot read properties of undefined (reading 'properties')"
+// ============================================================================
+
 /**
  * Tool for agent to explicitly save important information to memory
  */
@@ -22,7 +31,7 @@ export function createSaveToMemoryTool(): AnyAgentTool {
     description:
       "Salva um fato, decisao ou informacao importante na memoria institucional permanente. " +
       "Use para preservar decisoes estrategicas, preferencias do Founder, ou conhecimento que deve ser lembrado.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         content: {
@@ -98,7 +107,7 @@ export function createSearchMemoryTool(): AnyAgentTool {
     description:
       "Busca na memoria institucional por conversas e fatos relevantes. " +
       "Use para recuperar contexto historico, decisoes anteriores, ou informacoes que o Founder ja compartilhou.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         query: {
@@ -151,7 +160,7 @@ export function createVectorSearchTool(): AnyAgentTool {
       "Busca semântica na memória usando embeddings (pgvector). " +
       "Encontra conversas e informações semanticamente similares, mesmo que não contenham as mesmas palavras exatas. " +
       "Melhor para perguntas conceituais como 'o que discutimos sobre arquitetura?' ou 'decisões sobre infraestrutura'.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         query: {
@@ -212,7 +221,7 @@ export function createGetContextTool(): AnyAgentTool {
     description:
       "Recupera o contexto recente da conversa atual. " +
       "Use quando precisar relembrar o que foi discutido recentemente.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         limit: {
@@ -267,7 +276,7 @@ export function createKnowledgeGraphTool(): AnyAgentTool {
     description:
       "Consulta o grafo de conhecimento para encontrar entidades e suas conexões. " +
       "Útil para conversas longas onde você precisa lembrar quem é quem, quem trabalha onde, etc.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         entity: {
@@ -335,7 +344,7 @@ export function createFindConnectionTool(): AnyAgentTool {
     description:
       "Encontra o caminho de conexão entre duas entidades no grafo. " +
       "Por exemplo: como Ronald está conectado a MENTORINGBASE?",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         from: {
@@ -402,7 +411,7 @@ export function createLearnFactTool(): AnyAgentTool {
     description:
       "Aprende um novo fato sobre uma entidade (pessoa, empresa, projeto). " +
       "Use quando o Founder compartilhar informações importantes que devem ser lembradas.",
-    inputSchema: {
+    parameters: {
       type: "object",
       properties: {
         about: {
