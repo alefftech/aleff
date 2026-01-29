@@ -76,18 +76,29 @@ export interface EntityWithRelationships extends Entity {
  * Each pattern maps to a relationship type
  */
 const RELATIONSHIP_PATTERNS: Array<{ pattern: RegExp; type: RelationshipType }> = [
-  // Role patterns: "é diretor/CTO/CEO/gerente de X"
+  // Role patterns with "é": "é diretor/CTO/CEO/gerente de X"
   { pattern: /é\s+(?:o\s+)?(?:diretor[a]?|gerente|ceo|cto|cfo|cmo|cpo|cso)\s+(?:d[aoe]|da)\s+(.+)/i, type: 'works_at' },
+
+  // [FIX v2.0.1] Direct role without "é": "Diretora do X", "CFO das X", "CTO da X"
+  // Using non-capturing group (?:...) so group 1 is always the target entity
+  { pattern: /^(?:diretor[a]?|gerente|ceo|cto|cfo|cmo|cpo|cso)\s+(?:d[aoe]|das?)\s+(.+)/i, type: 'works_at' },
+
+  // [FIX v2.0.1] Role with colon: "Diretor: Carlos André"
+  { pattern: /diretor[a]?\s*:\s*(.+)/i, type: 'works_at' },
+
   // Works at patterns
   { pattern: /trabalha\s+(?:na|no|em)\s+(.+)/i, type: 'works_at' },
   { pattern: /faz\s+parte\s+(?:da|do)\s+(.+)/i, type: 'part_of' },
+
   // Responsibility patterns
   { pattern: /cuida\s+(?:da|do|de)\s+(.+)/i, type: 'responsible_for' },
   { pattern: /é\s+responsável\s+(?:por|pela|pelo)\s+(.+)/i, type: 'responsible_for' },
   { pattern: /lidera\s+(?:a|o)?\s*(.+)/i, type: 'manages' },
+
   // Ownership patterns
   { pattern: /é\s+dono\s+(?:da|do)\s+(.+)/i, type: 'owns' },
   { pattern: /fundou\s+(?:a|o)?\s*(.+)/i, type: 'owns' },
+
   // Manages patterns
   { pattern: /gerencia\s+(?:a|o)?\s*(.+)/i, type: 'manages' },
   { pattern: /coordena\s+(?:a|o)?\s*(.+)/i, type: 'manages' },
