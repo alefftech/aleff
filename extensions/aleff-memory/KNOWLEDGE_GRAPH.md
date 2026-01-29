@@ -1,18 +1,20 @@
-# Aleff Memory v2.0 - Knowledge Graph + Auto-Memory
+# Aleff Memory v2.2 - Knowledge Graph + Auto-Memory
 
 > **Sistema completo de memória institucional com grafo de conhecimento, auto-capture e auto-recall**
 
 ---
 
-## 🎯 **O Que Mudou (v2.0)**
+## 🎯 **O Que Mudou**
 
-| Feature | v1.0 (founder-memory) | v2.0 (aleff-memory) |
-|---------|----------------------|---------------------|
-| learn_fact | Cria entity + fact | **Cria entity + fact + relationships automaticamente** |
-| Auto-capture | ❌ Manual apenas | ✅ Detecta padrões e salva automaticamente |
-| Auto-recall | ❌ Agent decide | ✅ Injeta memórias relevantes antes do agent |
-| Logs | console.log misturado | ✅ JSON estruturado (stderr) |
-| Anchor comments | ❌ | ✅ `[PLUGIN:MAIN]`, `[KG:EXTRACT]`, etc. |
+| Feature | v1.0 | v2.0 | v2.2 (atual) |
+|---------|------|------|--------------|
+| learn_fact | Entity + fact | + relationships auto | + embeddings |
+| create_relationship | ❌ | ❌ | ✅ **NOVA TOOL** |
+| Auto-capture | ❌ | ✅ Padrões | ✅ + embeddings |
+| Auto-recall | ❌ | ✅ | ✅ |
+| Regex patterns | - | 13 | **35+** |
+| Logs | console.log | JSON | JSON |
+| Tools | 7 | 7 | **8** |
 
 ---
 
@@ -28,7 +30,7 @@ entities          -- Pessoas, empresas, projetos, conceitos
 
 relationships     -- Grafo de conexões
 ├── from_entity_id → to_entity_id
-├── relationship_type (works_at, manages, owns, part_of, responsible_for)
+├── relationship_type (works_at, manages, owns, part_of, responsible_for, reports_to, knows, related_to)
 └── strength (0.0 - 1.0)
 
 facts             -- Informações estruturadas sobre entidades
@@ -56,9 +58,9 @@ find_connection_path(from, to, max_depth)   -- Acha caminho entre entidades
 
 ---
 
-## 🛠️ **Agent Tools (7 tools)**
+## 🛠️ **Agent Tools (8 tools)**
 
-O Aleff tem acesso a 7 tools para memória:
+O Aleff tem acesso a 8 tools para memória:
 
 ### **1. query_knowledge_graph**
 ```json
@@ -106,31 +108,73 @@ Output:
   ✅ Relationship: Fabio → works_at → Holding  ← NOVO!
 ```
 
-**Padrões detectados:**
-- `é diretor/CTO/CEO de X` → works_at
-- `trabalha na/no X` → works_at
-- `cuida da/do X` → responsible_for
-- `lidera X` → manages
-- `é dono da/do X` → owns
+**Padrões detectados (35+):**
+
+| Padrão | Tipo | Exemplo |
+|--------|------|---------|
+| `é diretor/CTO/CEO de X` | works_at | "Fabio é CFO da Holding" |
+| `trabalha na/no/para X` | works_at | "trabalha na IAVANCADA" |
+| `é funcionário/membro de X` | works_at | "é membro do time" |
+| `cuida da/do X` | responsible_for | "cuida da parte financeira" |
+| `é responsável por X` | responsible_for | "é responsável pelo produto" |
+| `lidera/gerencia/coordena X` | manages | "lidera o time de vendas" |
+| `é dono/sócio/fundou X` | owns | "fundou a empresa" |
+| `faz parte de X` | part_of | "faz parte da holding" |
+| `pertence à/ao X` | part_of | "pertence à estrutura" |
+| `reporta para X` | reports_to | "reporta para o CEO" |
+| `é subordinado de X` | reports_to | "é subordinado do Ronald" |
+| `conhece X` | knows | "conhece o Fabio" |
+| `é cliente/parceiro de X` | related_to | "é parceiro da empresa" |
 
 ---
 
-### **4. save_to_memory**
-Salva decisões/fatos na `memory_index`
+### **4. create_relationship** ⭐ **NOVA v2.2**
+```json
+{
+  "from": "Mentoring Base",
+  "to": "Holding Aleff",
+  "type": "part_of",
+  "bidirectional": false
+}
+```
+
+**Uso:** Quando o agent precisa criar conexões que não são detectadas automaticamente.
+
+**Tipos disponíveis:**
+- `works_at` - trabalha em
+- `manages` - gerencia
+- `owns` - é dono/sócio
+- `part_of` - faz parte de
+- `knows` - conhece
+- `related_to` - relacionado a
+- `responsible_for` - responsável por
+- `reports_to` - reporta para
+
+**Exemplo de uso:**
+```
+Você: "Aleff, cria uma relação: Mentoring Base faz parte da Holding Aleff"
+Aleff: [usa create_relationship]
+  → Mentoring Base → [part_of] → Holding Aleff ✅
+```
 
 ---
 
-### **5. search_memory**
+### **5. save_to_memory**
+Salva decisões/fatos na `memory_index` **com embeddings** (fix v2.2)
+
+---
+
+### **6. search_memory**
 Full-text search (português) em mensagens
 
 ---
 
-### **6. semantic_search**
-Busca semântica via pgvector embeddings
+### **7. semantic_search**
+Busca semântica via pgvector embeddings (busca em memory_index, facts, messages)
 
 ---
 
-### **7. get_conversation_context**
+### **8. get_conversation_context**
 Últimas N mensagens da conversa atual
 
 ---
@@ -173,10 +217,11 @@ Aleff: [usa learn_fact]
 
 ```
 ┌───────────────────────────────────────┐
-│  Agent Tools                          │  ← O que o Aleff usa
+│  Agent Tools (8 total)                │  ← O que o Aleff usa
 │  - query_knowledge_graph              │
 │  - find_connection                    │
 │  - learn_fact                         │
+│  - create_relationship  ← NOVA v2.2   │
 └───────────────────────────────────────┘
               ↓
 ┌───────────────────────────────────────┐
@@ -382,7 +427,7 @@ class AleffMemoryProAdapter {
 | Fase | Entrega | Descrição |
 |------|---------|-----------|
 | **v2.0** | ✅ 2026-01-29 | Auto-capture, auto-recall, relationships |
-| **v2.1** | Q1 2026 | Melhorar patterns de extração |
+| **v2.2** | ✅ 2026-01-29 | create_relationship tool, 35+ patterns |
 | **v3.0-alpha** | Q2 2026 | mem0 SDK integrado (Qdrant local) |
 | **v3.0** | Q3 2026 | Neo4j para graph, production-ready |
 | **v4.0** | 2027 | Multi-agent memory, temporal reasoning |
@@ -488,19 +533,22 @@ Injeta memórias relevantes ANTES do agent processar:
 
 ```
 extensions/aleff-memory/
-├── index.ts              [PLUGIN:MAIN] Registro + hooks
+├── index.ts              [PLUGIN:MAIN] Registro + hooks (8 tools)
 ├── clawdbot.plugin.json  Config schema
-├── package.json          @moltbot/aleff-memory v2.0.0
+├── package.json          @moltbot/aleff-memory v2.2.0
 ├── KNOWLEDGE_GRAPH.md    Este arquivo
 └── src/
     ├── auto-capture.ts   [CAPTURE:MAIN] Detecção automática
     ├── auto-recall.ts    [RECALL:MAIN] Injeção de contexto
+    ├── backfill-embeddings.ts     Backfill embeddings existentes
+    ├── backfill-memory-index.ts   Backfill memory_index
+    ├── backfill-relationships.ts  Backfill relationships de facts
     ├── embeddings.ts     OpenAI text-embedding-3-small
-    ├── knowledge-graph.ts [KG:MAIN] Entities, relationships, facts
+    ├── knowledge-graph.ts [KG:MAIN] Entities, relationships, facts (35+ patterns)
     ├── logger.ts         [LOG:MAIN] JSON estruturado (stderr)
-    ├── persist.ts        Conversas e mensagens
+    ├── persist.ts        Conversas e mensagens (com embeddings v2.2)
     ├── postgres.ts       Connection pool
-    └── tools.ts          [TOOLS:MAIN] 7 agent tools
+    └── tools.ts          [TOOLS:MAIN] 8 agent tools
 ```
 
 ---
@@ -522,5 +570,5 @@ docker logs aleffai 2>&1 | grep aleff-memory | jq .
 
 **Criado:** 2026-01-28
 **Atualizado:** 2026-01-29
-**Versão:** 2.0
+**Versão:** 2.2
 **Autor:** CTO Ronald + Claude Opus 4.5
