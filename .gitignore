@@ -77,3 +77,6 @@ data/
 # Google OAuth credentials
 gogcli/credentials.json
 gogcli/keyring/
+# Auto-generated workspace files
+/workspace/*.md
+!/workspace/agents/
