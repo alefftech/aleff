@@ -625,3 +625,158 @@ export function createLearnFactTool(): AnyAgentTool {
     },
   };
 }
+
+/**
+ * [TOOLS:CREATE_RELATIONSHIP] Tool for manually creating relationships between entities
+ *
+ * Use when the agent needs to establish connections that aren't captured
+ * by automatic extraction (e.g., "Mentoring Base pertence à Holding Aleff").
+ *
+ * This enables the agent to build a complete knowledge graph for find_connection.
+ */
+export function createCreateRelationshipTool(): AnyAgentTool {
+  return {
+    name: "create_relationship",
+    description:
+      "Cria uma relação entre duas entidades no grafo de conhecimento. " +
+      "Use para estabelecer conexões como 'X pertence a Y', 'A gerencia B', 'C conhece D'. " +
+      "Isso permite que find_connection encontre caminhos entre entidades.",
+    parameters: {
+      type: "object",
+      properties: {
+        from: {
+          type: "string",
+          description: "Entidade de origem (ex: 'Melissa', 'Mentoring Base')",
+        },
+        to: {
+          type: "string",
+          description: "Entidade de destino (ex: 'Holding Aleff', 'Ronald')",
+        },
+        type: {
+          type: "string",
+          enum: ["works_at", "manages", "owns", "part_of", "knows", "related_to", "responsible_for", "reports_to"],
+          description: "Tipo da relação: works_at (trabalha em), manages (gerencia), owns (é dono), part_of (faz parte de), knows (conhece), related_to (relacionado a), responsible_for (responsável por), reports_to (reporta para)",
+        },
+        bidirectional: {
+          type: "boolean",
+          description: "Se true, cria relação nos dois sentidos (default: false)",
+        },
+      },
+      required: ["from", "to", "type"],
+    },
+    async execute(
+      _toolCallId: string,
+      params: {
+        from: string;
+        to: string;
+        type: RelationshipType;
+        bidirectional?: boolean;
+      }
+    ) {
+      // [VALIDATE:PARAMS] Defensive validation
+      const validation = validateRequiredParams(params ?? {}, ["from", "to", "type"]);
+      if (!validation.valid) {
+        return jsonResult({ success: false, error: validation.error });
+      }
+
+      if (!isPostgresConfigured()) {
+        return jsonResult({
+          success: false,
+          error: "PostgreSQL not configured",
+        });
+      }
+
+      // [ENTITY:FROM] Find or create the 'from' entity
+      let fromEntity = await findEntity(params.from);
+      if (!fromEntity) {
+        const fromType = inferEntityType(params.from);
+        const fromEmbedding = await generateEmbedding(params.from);
+        fromEntity = await upsertEntity({
+          type: fromType,
+          name: params.from,
+          embedding: fromEmbedding || undefined,
+        });
+        if (!fromEntity) {
+          return jsonResult({
+            success: false,
+            error: `Failed to create entity "${params.from}"`,
+          });
+        }
+        logger.info({ name: params.from, type: fromType }, "entity_created_for_relationship");
+      }
+
+      // [ENTITY:TO] Find or create the 'to' entity
+      let toEntity = await findEntity(params.to);
+      if (!toEntity) {
+        const toType = inferEntityType(params.to);
+        const toEmbedding = await generateEmbedding(params.to);
+        toEntity = await upsertEntity({
+          type: toType,
+          name: params.to,
+          embedding: toEmbedding || undefined,
+        });
+        if (!toEntity) {
+          return jsonResult({
+            success: false,
+            error: `Failed to create entity "${params.to}"`,
+          });
+        }
+        logger.info({ name: params.to, type: toType }, "entity_created_for_relationship");
+      }
+
+      // [RELATIONSHIP:CREATE] Create the relationship
+      const relationship = await createRelationship({
+        from: params.from,
+        to: params.to,
+        type: params.type,
+        strength: 0.9,
+      });
+
+      if (!relationship) {
+        return jsonResult({
+          success: false,
+          error: `Failed to create relationship ${params.from} → ${params.type} → ${params.to}`,
+        });
+      }
+
+      logger.info(
+        { from: params.from, to: params.to, type: params.type, bidirectional: params.bidirectional },
+        "manual_relationship_created"
+      );
+
+      // [RELATIONSHIP:BIDIRECTIONAL] Create reverse relationship if requested
+      let reverseCreated = false;
+      if (params.bidirectional) {
+        // Determine reverse relationship type
+        const reverseType = params.type; // Same type, just reversed direction
+        const reverseRel = await createRelationship({
+          from: params.to,
+          to: params.from,
+          type: reverseType,
+          strength: 0.9,
+        });
+        reverseCreated = !!reverseRel;
+        if (reverseCreated) {
+          logger.info(
+            { from: params.to, to: params.from, type: reverseType },
+            "reverse_relationship_created"
+          );
+        }
+      }
+
+      return jsonResult({
+        success: true,
+        message: params.bidirectional
+          ? `Relação criada: ${params.from} ↔ [${params.type}] ↔ ${params.to}`
+          : `Relação criada: ${params.from} → [${params.type}] → ${params.to}`,
+        relationship: {
+          from: params.from,
+          to: params.to,
+          type: params.type,
+        },
+        bidirectional: params.bidirectional ?? false,
+        reverse_created: reverseCreated,
+      });
+    },
+  };
+}

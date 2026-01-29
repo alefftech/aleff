@@ -1,5 +1,5 @@
 /**
- * [PLUGIN:MAIN] Aleff Memory v2.1
+ * [PLUGIN:MAIN] Aleff Memory v2.2
  *
  * Institutional memory plugin with:
  * - Message persistence (conversations, messages)
@@ -8,10 +8,15 @@
  * - Auto-capture (detect & save important content)
  * - Auto-recall (inject relevant context)
  *
- * 7 Tools registered:
- * - save_to_memory, search_memory, semantic_search
- * - get_conversation_context
- * - query_knowledge_graph, find_connection, learn_fact
+ * 8 Tools registered:
+ * - save_to_memory: Save facts/decisions explicitly
+ * - search_memory: Full-text search
+ * - semantic_search: Vector similarity search
+ * - get_conversation_context: Recent context
+ * - query_knowledge_graph: Entity lookup
+ * - find_connection: Path between entities (BFS)
+ * - learn_fact: Learn facts + auto-create relationships
+ * - create_relationship: Manual relationship creation (NEW v2.2)
  *
  * Hooks:
  * - message_received: Persist user messages
@@ -19,7 +24,7 @@
  * - agent_end: Persist assistant messages (fallback)
  * - before_agent_start: Auto-recall memories
  *
- * @version 2.1.0
+ * @version 2.2.0
  * @updated 2026-01-29
  */
 
@@ -37,6 +42,7 @@ import {
   createKnowledgeGraphTool,
   createFindConnectionTool,
   createLearnFactTool,
+  createCreateRelationshipTool,
 } from "./src/tools.js";
 
 // =============================================================================
@@ -117,18 +123,20 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
   }
 
   // ==========================================================================
-  // [PLUGIN:TOOLS] Register agent tools
+  // [PLUGIN:TOOLS] Register agent tools (8 total)
   // ==========================================================================
 
+  // Memory tools (4)
   api.registerTool(createSaveToMemoryTool());
   api.registerTool(createSearchMemoryTool());
   api.registerTool(createVectorSearchTool());
   api.registerTool(createGetContextTool());
 
-  // Knowledge graph tools
+  // Knowledge graph tools (4)
   api.registerTool(createKnowledgeGraphTool());
   api.registerTool(createFindConnectionTool());
   api.registerTool(createLearnFactTool());
+  api.registerTool(createCreateRelationshipTool()); // NEW: Manual relationship creation
 
   // ==========================================================================
   // [HOOK:MESSAGE_RECEIVED] Persist inbound messages
@@ -481,8 +489,8 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
 
   structuredLogger.info(
     {
-      version: "2.1.0",
-      tools: 7,
+      version: "2.2.0",
+      tools: 8,
       hooks: ["message_received", "message_sent", "before_agent_start", "agent_end"],
       autoCapture: cfg.autoCapture,
       autoRecall: cfg.autoRecall,
@@ -490,6 +498,6 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
     "plugin_registered"
   );
   logger.info(
-    "Aleff Memory v2.1 registered with message hooks, 7 tools, auto-capture, and auto-recall."
+    "Aleff Memory v2.2 registered with message hooks, 8 tools, auto-capture, and auto-recall."
   );
 }

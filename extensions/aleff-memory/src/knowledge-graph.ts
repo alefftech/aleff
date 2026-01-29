@@ -18,7 +18,15 @@ import { logger } from "./logger.js";
 // =============================================================================
 
 export type EntityType = 'person' | 'company' | 'project' | 'concept';
-export type RelationshipType = 'works_at' | 'manages' | 'owns' | 'part_of' | 'knows' | 'related_to' | 'responsible_for';
+export type RelationshipType =
+  | 'works_at'       // pessoa trabalha em empresa
+  | 'manages'        // pessoa gerencia pessoa/projeto
+  | 'owns'           // pessoa é dona/sócia de empresa
+  | 'part_of'        // entidade faz parte de outra
+  | 'knows'          // pessoa conhece pessoa
+  | 'related_to'     // relação genérica
+  | 'responsible_for' // pessoa é responsável por área
+  | 'reports_to';    // pessoa reporta para pessoa
 export type FactType = 'preference' | 'decision' | 'observation' | 'skill' | 'status';
 
 // [KG:EXTRACT] Extracted relationship from fact text
@@ -72,36 +80,105 @@ export interface EntityWithRelationships extends Entity {
 // =============================================================================
 
 /**
- * Patterns to extract relationships from fact text
- * Each pattern maps to a relationship type
+ * [KG:PATTERNS] Patterns to extract relationships from fact text
+ *
+ * Each pattern maps to a relationship type.
+ * Group 1 in each regex captures the target entity name.
+ *
+ * Supported relationship types:
+ * - works_at: pessoa trabalha em empresa
+ * - manages: pessoa gerencia pessoa/projeto
+ * - owns: pessoa é dona/sócia de empresa
+ * - part_of: entidade faz parte de outra
+ * - knows: pessoa conhece pessoa
+ * - related_to: relação genérica
+ * - responsible_for: pessoa é responsável por área
+ * - reports_to: pessoa reporta para pessoa
+ *
+ * @version 2.1.0 - Expanded patterns
  */
 const RELATIONSHIP_PATTERNS: Array<{ pattern: RegExp; type: RelationshipType }> = [
+  // ==========================================================================
+  // [PATTERN:WORKS_AT] Pessoa trabalha em empresa
+  // ==========================================================================
+
   // Role patterns with "é": "é diretor/CTO/CEO/gerente de X"
-  { pattern: /é\s+(?:o\s+)?(?:diretor[a]?|gerente|ceo|cto|cfo|cmo|cpo|cso)\s+(?:d[aoe]|da)\s+(.+)/i, type: 'works_at' },
+  { pattern: /é\s+(?:o\s+)?(?:diretor[a]?|gerente|ceo|cto|cfo|cmo|cpo|cso|founder|sócio)\s+(?:d[aoe]|da)\s+(.+)/i, type: 'works_at' },
 
-  // [FIX v2.0.1] Direct role without "é": "Diretora do X", "CFO das X", "CTO da X"
-  // Using non-capturing group (?:...) so group 1 is always the target entity
-  { pattern: /^(?:diretor[a]?|gerente|ceo|cto|cfo|cmo|cpo|cso)\s+(?:d[aoe]|das?)\s+(.+)/i, type: 'works_at' },
+  // Direct role without "é": "Diretora do X", "CFO das X", "CTO da X"
+  { pattern: /^(?:diretor[a]?|gerente|ceo|cto|cfo|cmo|cpo|cso|founder|sócio)\s+(?:d[aoe]|das?)\s+(.+)/i, type: 'works_at' },
 
-  // [FIX v2.0.1] Role with colon: "Diretor: Carlos André"
-  { pattern: /diretor[a]?\s*:\s*(.+)/i, type: 'works_at' },
+  // Role with colon: "Diretor: Carlos André"
+  { pattern: /(?:diretor[a]?|ceo|cto|cfo|cmo|cpo|cso)\s*:\s*(.+)/i, type: 'works_at' },
 
   // Works at patterns
-  { pattern: /trabalha\s+(?:na|no|em)\s+(.+)/i, type: 'works_at' },
-  { pattern: /faz\s+parte\s+(?:da|do)\s+(.+)/i, type: 'part_of' },
+  { pattern: /trabalha\s+(?:na|no|em|para)\s+(.+)/i, type: 'works_at' },
+  { pattern: /atua\s+(?:na|no|em)\s+(.+)/i, type: 'works_at' },
+  { pattern: /é\s+(?:funcionário|colaborador|membro)\s+(?:da|do|de)\s+(.+)/i, type: 'works_at' },
 
-  // Responsibility patterns
+  // ==========================================================================
+  // [PATTERN:PART_OF] Entidade faz parte de outra
+  // ==========================================================================
+
+  { pattern: /faz\s+parte\s+(?:da|do|de)\s+(.+)/i, type: 'part_of' },
+  { pattern: /pertence\s+(?:à|ao|a)\s+(.+)/i, type: 'part_of' },
+  { pattern: /é\s+(?:uma?\s+)?(?:unidade|divisão|área|setor)\s+(?:da|do|de)\s+(.+)/i, type: 'part_of' },
+  { pattern: /está\s+(?:dentro|sob)\s+(?:da|do|de)\s+(.+)/i, type: 'part_of' },
+  { pattern: /é\s+subsidiári[ao]\s+(?:da|do|de)\s+(.+)/i, type: 'part_of' },
+
+  // ==========================================================================
+  // [PATTERN:RESPONSIBLE_FOR] Pessoa é responsável por área
+  // ==========================================================================
+
   { pattern: /cuida\s+(?:da|do|de)\s+(.+)/i, type: 'responsible_for' },
   { pattern: /é\s+responsável\s+(?:por|pela|pelo)\s+(.+)/i, type: 'responsible_for' },
-  { pattern: /lidera\s+(?:a|o)?\s*(.+)/i, type: 'manages' },
+  { pattern: /responde\s+(?:por|pela|pelo)\s+(.+)/i, type: 'responsible_for' },
+  { pattern: /toca\s+(?:a|o)\s+(.+)/i, type: 'responsible_for' },
 
-  // Ownership patterns
-  { pattern: /é\s+dono\s+(?:da|do)\s+(.+)/i, type: 'owns' },
+  // ==========================================================================
+  // [PATTERN:MANAGES] Pessoa gerencia pessoa/projeto
+  // ==========================================================================
+
+  { pattern: /lidera\s+(?:a|o|as|os)?\s*(.+)/i, type: 'manages' },
+  { pattern: /gerencia\s+(?:a|o|as|os)?\s*(.+)/i, type: 'manages' },
+  { pattern: /coordena\s+(?:a|o|as|os)?\s*(.+)/i, type: 'manages' },
+  { pattern: /chefia\s+(?:a|o|as|os)?\s*(.+)/i, type: 'manages' },
+  { pattern: /comanda\s+(?:a|o|as|os)?\s*(.+)/i, type: 'manages' },
+  { pattern: /é\s+(?:chefe|líder|gestor)\s+(?:da|do|de)\s+(.+)/i, type: 'manages' },
+
+  // ==========================================================================
+  // [PATTERN:OWNS] Pessoa é dona/sócia de empresa
+  // ==========================================================================
+
+  { pattern: /é\s+(?:dono|dona|proprietário|proprietária)\s+(?:da|do|de)\s+(.+)/i, type: 'owns' },
   { pattern: /fundou\s+(?:a|o)?\s*(.+)/i, type: 'owns' },
+  { pattern: /é\s+(?:sócio|sócia|acionista)\s+(?:da|do|de)\s+(.+)/i, type: 'owns' },
+  { pattern: /criou\s+(?:a|o)?\s*(.+)/i, type: 'owns' },
 
-  // Manages patterns
-  { pattern: /gerencia\s+(?:a|o)?\s*(.+)/i, type: 'manages' },
-  { pattern: /coordena\s+(?:a|o)?\s*(.+)/i, type: 'manages' },
+  // ==========================================================================
+  // [PATTERN:REPORTS_TO] Pessoa reporta para pessoa
+  // ==========================================================================
+
+  { pattern: /reporta\s+(?:para|a|ao)\s+(.+)/i, type: 'reports_to' },
+  { pattern: /é\s+subordinad[oa]\s+(?:de|a|ao)\s+(.+)/i, type: 'reports_to' },
+  { pattern: /responde\s+(?:para|a|ao)\s+(.+)/i, type: 'reports_to' },
+  { pattern: /trabalha\s+(?:para|com)\s+(.+)/i, type: 'reports_to' },
+
+  // ==========================================================================
+  // [PATTERN:KNOWS] Pessoa conhece pessoa
+  // ==========================================================================
+
+  { pattern: /conhece\s+(?:o|a)?\s*(.+)/i, type: 'knows' },
+  { pattern: /é\s+(?:amigo|amiga|colega)\s+(?:de|do|da)\s+(.+)/i, type: 'knows' },
+  { pattern: /tem\s+contato\s+com\s+(.+)/i, type: 'knows' },
+
+  // ==========================================================================
+  // [PATTERN:RELATED_TO] Relação genérica
+  // ==========================================================================
+
+  { pattern: /está\s+relacionad[oa]\s+(?:com|a|ao)\s+(.+)/i, type: 'related_to' },
+  { pattern: /tem\s+relação\s+com\s+(.+)/i, type: 'related_to' },
+  { pattern: /é\s+(?:cliente|fornecedor|parceiro)\s+(?:da|do|de)\s+(.+)/i, type: 'related_to' },
 ];
 
 /**
