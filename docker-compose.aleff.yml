@@ -86,6 +86,8 @@ services:
     volumes:
       # [VOL:CONFIG] Moltbot configuration and state
       - ./data:/home/node/.moltbot:rw
+      # [VOL:CLAWDBOT] Agent credentials and OAuth tokens (CRITICAL for Claude Max)
+      - ./clawdbot:/home/node/.clawdbot:rw
       # [VOL:GOGCLI] Google OAuth credentials
       - ./gogcli:/home/node/.config/gogcli:rw
     logging:
