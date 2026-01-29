@@ -19,6 +19,7 @@ docker run -d \
   --network aleff_default \
   -p 18789:18789 \
   -v /home/devuser/Desktop/abckx/aleff/data:/home/node/.moltbot:rw \
+  -v /home/devuser/Desktop/abckx/aleff/workspace:/home/node/clawd:rw \
   -v /home/devuser/Desktop/abckx/aleff/gogcli:/home/node/.config/gogcli:rw \
   -e HOME=/home/node \
   -e NODE_ENV=production \
