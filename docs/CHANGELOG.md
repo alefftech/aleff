@@ -7,13 +7,26 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
-- Nada ainda
+- **whatsapp-megaapi: Dispatch Pipeline Integration** (WIP)
+  - `src/runtime.ts` - Singleton para acesso ao PluginRuntime entre módulos
+  - `src/monitor.ts` - Processa mensagens inbound via `dispatchReplyWithBufferedBlockDispatcher`
+  - `src/webhook-handler.ts` - HTTP handler para webhooks com suporte a múltiplos paths
+  - Suporte a `/megaapi-webhook` (novo) e `/hooks/megaapi` (legacy)
 
 ### Fixed
-- Nada ainda
+- **aleff-supervisor: Notificações Telegram reais** (commit f5ac4b1d5)
+  - Corrigido `notify.ts` para enviar notificações via Telegram API
+  - Hooks `message_received` e `before_agent_dispatch` funcionando
 
 ### Changed
-- Nada ainda
+- **whatsapp-megaapi/index.ts** - Substituído `api.emit("whatsapp:message")` por `api.registerHttpHandler()`
+- **gateway/server-http.ts** - Sistema de `/hooks` agora passa adiante para outros handlers quando não encontra mapeamento (em vez de retornar 404)
+
+### In Progress
+- WhatsApp INPUT notifications ainda não funcionam porque:
+  - Webhook do MegaAPI configurado para `/hooks/megaapi` com token do sistema de hooks
+  - Handler precisa aceitar esse token (não apenas MEGAAPI_WEBHOOK_TOKEN)
+  - Necessário: validar token do hooks.token OU atualizar URL no MegaAPI dashboard
 
 ---
 

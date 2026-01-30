@@ -193,10 +193,9 @@ export function createHooksRequestHandler(
       }
     }
 
-    res.statusCode = 404;
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.end("Not Found");
-    return true;
+    // [PASSTHROUGH] Unknown subPath - let other handlers try (e.g., plugin HTTP handlers)
+    // This allows plugins to register handlers for /hooks/* paths
+    return false;
   };
 }
 
