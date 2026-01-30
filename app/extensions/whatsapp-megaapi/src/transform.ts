@@ -180,65 +180,89 @@ async function downloadMedia(
 export default async function transform(
   ctx: HookMappingContext
 ): Promise<TransformResult | null> {
-  const payload = ctx.payload as unknown as MegaAPIWebhookPayload;
-  const { data } = payload;
+  const rawPayload = ctx.payload as Record<string, unknown>;
+
+  // [COMPAT] MegaAPI sends data at root level OR inside "data" wrapper
+  // Root format: { key, message, pushName, ... }
+  // Wrapped format: { data: { key, message, pushName, ... } }
+  const data = (rawPayload.data as Record<string, unknown>) || rawPayload;
+
+  // [DEBUG] Log payload structure
+  log("debug", {
+    hasKey: !!data?.key,
+    hasMessage: !!data?.message,
+    messageType: data?.messageType,
+    payloadFormat: rawPayload.data ? "wrapped" : "root"
+  }, "webhook_received");
+
+  const key = data.key as { remoteJid?: string; fromMe?: boolean; id?: string } | undefined;
+  const message = data.message as Record<string, unknown> | undefined;
 
   // [GUARD:OWN] Skip own messages
-  if (data?.key?.fromMe) {
-    log("debug", { messageId: data.key.id }, "skipping_own_message");
+  if (key?.fromMe) {
+    log("debug", { messageId: key.id }, "skipping_own_message");
     return null;
   }
 
-  // [GUARD:MESSAGE] Skip if no message
-  if (!data?.message) {
-    log("debug", {}, "skipping_no_message");
+  // [GUARD:MESSAGE] Skip if no message content
+  if (!message || Object.keys(message).length === 0) {
+    log("debug", { messageType: data?.messageType }, "skipping_no_message");
     return null;
   }
 
   const sender = {
-    jid: data.key?.remoteJid || "",
-    name: data.pushName || "Unknown",
-    number: (data.key?.remoteJid || "").split("@")[0],
+    jid: key?.remoteJid || (data.jid as string) || "",
+    name: (data.pushName as string) || "Unknown",
+    number: (key?.remoteJid || (data.jid as string) || "").split("@")[0],
   };
 
-  const message = data.message;
   let content = "";
   let mediaInfo = "";
   let channel: TransformResult["channel"] = undefined;
 
+  // Cast message fields for type safety
+  const conversation = message.conversation as string | undefined;
+  const extendedText = message.extendedTextMessage as { text?: string } | undefined;
+  const imageMsg = message.imageMessage as MediaMessageData & { caption?: string } | undefined;
+  const audioMsg = message.audioMessage as MediaMessageData & { ptt?: boolean } | undefined;
+  const videoMsg = message.videoMessage as MediaMessageData & { caption?: string } | undefined;
+  const documentMsg = message.documentMessage as MediaMessageData & { fileName?: string; caption?: string } | undefined;
+  const stickerMsg = message.stickerMessage as MediaMessageData | undefined;
+  const locationMsg = message.locationMessage as { degreesLatitude?: number; degreesLongitude?: number; name?: string } | undefined;
+  const contactMsg = message.contactMessage as { displayName?: string } | undefined;
+
   // =========================================================================
   // [PROCESS:TEXT] Plain text message
   // =========================================================================
-  if (message.conversation) {
-    content = message.conversation;
+  if (conversation) {
+    content = conversation;
     log("info", { from: sender.jid, type: "text" }, "processing_text");
   }
   // =========================================================================
   // [PROCESS:EXTENDED_TEXT] Extended text (reply, link preview)
   // =========================================================================
-  else if (message.extendedTextMessage?.text) {
-    content = message.extendedTextMessage.text;
+  else if (extendedText?.text) {
+    content = extendedText.text;
     log("info", { from: sender.jid, type: "extended_text" }, "processing_text");
   }
   // =========================================================================
   // [PROCESS:IMAGE] Image message
   // =========================================================================
-  else if (message.imageMessage) {
-    const img = message.imageMessage;
+  else if (imageMsg) {
     log("info", { from: sender.jid, type: "image" }, "processing_media");
 
-    const media = await downloadMedia(img, "imageMessage");
+    const media = await downloadMedia(imageMsg, "imageMessage");
 
     if (media.url || media.base64) {
       mediaInfo = "[IMAGEM]";
-      content = img.caption || "";
+      content = imageMsg.caption || "";
       channel = {
         kind: "whatsapp",
         media: {
           type: "image",
           url: media.url,
           base64: media.base64,
-          mimetype: img.mimetype,
+          mimetype: imageMsg.mimetype,
         },
       };
     } else {
@@ -248,12 +272,11 @@ export default async function transform(
   // =========================================================================
   // [PROCESS:AUDIO] Audio message (including voice notes)
   // =========================================================================
-  else if (message.audioMessage) {
-    const audio = message.audioMessage;
-    const isVoiceNote = audio.ptt === true;
+  else if (audioMsg) {
+    const isVoiceNote = audioMsg.ptt === true;
     log("info", { from: sender.jid, type: isVoiceNote ? "ptt" : "audio" }, "processing_media");
 
-    const media = await downloadMedia(audio, "audioMessage");
+    const media = await downloadMedia(audioMsg, "audioMessage");
 
     if (media.url || media.base64) {
       mediaInfo = isVoiceNote ? "[ÁUDIO DE VOZ]" : "[ÁUDIO]";
@@ -263,7 +286,7 @@ export default async function transform(
           type: "audio",
           url: media.url,
           base64: media.base64,
-          mimetype: audio.mimetype,
+          mimetype: audioMsg.mimetype,
           ptt: isVoiceNote,
         },
       };
@@ -274,22 +297,21 @@ export default async function transform(
   // =========================================================================
   // [PROCESS:VIDEO] Video message
   // =========================================================================
-  else if (message.videoMessage) {
-    const video = message.videoMessage;
+  else if (videoMsg) {
     log("info", { from: sender.jid, type: "video" }, "processing_media");
 
-    const media = await downloadMedia(video, "videoMessage");
+    const media = await downloadMedia(videoMsg, "videoMessage");
 
     if (media.url || media.base64) {
       mediaInfo = "[VÍDEO]";
-      content = video.caption || "";
+      content = videoMsg.caption || "";
       channel = {
         kind: "whatsapp",
         media: {
           type: "video",
           url: media.url,
           base64: media.base64,
-          mimetype: video.mimetype,
+          mimetype: videoMsg.mimetype,
         },
       };
     } else {
@@ -299,23 +321,22 @@ export default async function transform(
   // =========================================================================
   // [PROCESS:DOCUMENT] Document message
   // =========================================================================
-  else if (message.documentMessage) {
-    const doc = message.documentMessage;
-    const fileName = doc.fileName || "documento";
+  else if (documentMsg) {
+    const fileName = documentMsg.fileName || "documento";
     log("info", { from: sender.jid, type: "document", fileName }, "processing_media");
 
-    const media = await downloadMedia(doc, "documentMessage");
+    const media = await downloadMedia(documentMsg, "documentMessage");
 
     if (media.url || media.base64) {
       mediaInfo = `[DOCUMENTO: ${fileName}]`;
-      content = doc.caption || "";
+      content = documentMsg.caption || "";
       channel = {
         kind: "whatsapp",
         media: {
           type: "document",
           url: media.url,
           base64: media.base64,
-          mimetype: doc.mimetype,
+          mimetype: documentMsg.mimetype,
           fileName,
         },
       };
@@ -326,32 +347,30 @@ export default async function transform(
   // =========================================================================
   // [PROCESS:STICKER] Sticker message
   // =========================================================================
-  else if (message.stickerMessage) {
+  else if (stickerMsg) {
     log("info", { from: sender.jid, type: "sticker" }, "processing_sticker");
     content = "[Sticker]";
   }
   // =========================================================================
   // [PROCESS:LOCATION] Location message
   // =========================================================================
-  else if (message.locationMessage) {
-    const loc = message.locationMessage;
+  else if (locationMsg) {
     log("info", { from: sender.jid, type: "location" }, "processing_location");
-    const name = loc.name ? ` - ${loc.name}` : "";
-    content = `[Localização${name}: ${loc.degreesLatitude}, ${loc.degreesLongitude}]`;
+    const name = locationMsg.name ? ` - ${locationMsg.name}` : "";
+    content = `[Localização${name}: ${locationMsg.degreesLatitude}, ${locationMsg.degreesLongitude}]`;
   }
   // =========================================================================
   // [PROCESS:CONTACT] Contact message
   // =========================================================================
-  else if (message.contactMessage) {
-    const contact = message.contactMessage;
+  else if (contactMsg) {
     log("info", { from: sender.jid, type: "contact" }, "processing_contact");
-    content = `[Contato: ${contact.displayName || "sem nome"}]`;
+    content = `[Contato: ${contactMsg.displayName || "sem nome"}]`;
   }
   // =========================================================================
   // [PROCESS:UNKNOWN] Unknown message type
   // =========================================================================
   else {
-    log("warn", { from: sender.jid, messageKeys: Object.keys(message) }, "unknown_message_type");
+    log("warn", { from: sender.jid, messageKeys: Object.keys(message || {}) }, "unknown_message_type");
     content = "[Mensagem não suportada]";
   }
 
@@ -375,7 +394,9 @@ export default async function transform(
     name: sender.name,
     sessionKey: `whatsapp:${sender.jid}`,
     wakeMode: "now",
-    channel,
+    deliver: true,
+    channel: "whatsapp",
+    to: sender.jid,
     allowUnsafeExternalContent: true,
   };
 }
