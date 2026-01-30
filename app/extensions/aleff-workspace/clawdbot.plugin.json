@@ -1,0 +1,40 @@
+{
+  "id": "aleff-workspace",
+  "name": "Aleff Workspace",
+  "description": "Workspace file persistence with PostgreSQL backup, versioning, and dashboard access",
+  "kind": "storage",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable workspace persistence (opt-in)"
+      },
+      "agentId": {
+        "type": "string",
+        "default": "aleff",
+        "description": "Agent identifier for multi-tenant deployments"
+      },
+      "workspacePath": {
+        "type": "string",
+        "default": "/app/workspace/agents/aleff",
+        "description": "Local workspace directory path"
+      },
+      "monitoredFiles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": ["IDENTITY.md", "SOUL.md", "AGENTS.md", "TOOLS.md", "USER.md"],
+        "description": "Files to sync between DB and local filesystem"
+      },
+      "dbIsSourceOfTruth": {
+        "type": "boolean",
+        "default": true,
+        "description": "When true, DB content overwrites local on boot"
+      }
+    }
+  }
+}

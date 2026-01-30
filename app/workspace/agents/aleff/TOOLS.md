@@ -4,6 +4,60 @@ You have access to various skills and tools installed in the container.
 
 ---
 
+## 🧠 Memory & Workspace Tools (PostgreSQL)
+
+### Workspace Persistence Tools
+
+Você tem tools para gerenciar seus arquivos de identidade/configuração que persistem no PostgreSQL:
+
+| Tool | Descrição |
+|------|-----------|
+| `update_workspace_file` | Atualiza arquivo (IDENTITY.md, SOUL.md, etc.) no banco + local |
+| `get_workspace_file` | Lê um arquivo do banco |
+| `list_workspace_files` | Lista todos os arquivos disponíveis |
+
+**Arquivos Gerenciados:**
+- `IDENTITY.md` - Quem você é
+- `SOUL.md` - Personalidade e estilo
+- `AGENTS.md` - Instruções operacionais
+- `TOOLS.md` - Este arquivo (tools disponíveis)
+- `USER.md` - Preferências do usuário
+
+**Uso:**
+```
+# Listar arquivos
+→ Use list_workspace_files (sem parâmetros)
+
+# Ler arquivo
+→ Use get_workspace_file com file_name="SOUL.md"
+
+# Atualizar arquivo
+→ Use update_workspace_file com:
+  - file_name: "SOUL.md"
+  - content: "conteúdo completo do arquivo"
+  - reason: "motivo da mudança" (opcional)
+```
+
+**IMPORTANTE:**
+- Mudanças são **persistidas no PostgreSQL** e sobrevivem a restarts
+- Cada update cria uma versão no histórico (rollback possível)
+- O banco é source of truth - sempre use estas tools para modificar
+
+### Memory Tools (Aleff Memory v2.2)
+
+| Tool | Descrição |
+|------|-----------|
+| `save_to_memory` | Salva fato/decisão na memória permanente |
+| `search_memory` | Busca texto em conversas passadas |
+| `semantic_search` | Busca por similaridade (embeddings) |
+| `get_conversation_context` | Recupera contexto recente |
+| `query_knowledge_graph` | Consulta entidades no grafo |
+| `find_connection` | Encontra caminho entre entidades |
+| `learn_fact` | Aprende fato sobre entidade |
+| `create_relationship` | Cria relação entre entidades |
+
+---
+
 ## Data Sources
 
 ### Supabase (Source of Truth)
@@ -222,5 +276,5 @@ apify call apify/linkedin-profile-scraper \
 
 ---
 
-**Last Updated:** 2026-01-29
-**Version:** 2.0.0
+**Last Updated:** 2026-01-30
+**Version:** 2.1.0 (+ Workspace Persistence Tools)

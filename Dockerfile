@@ -107,6 +107,11 @@ RUN curl -sL https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcli_
 # [BUILD:SOURCE] Copy application source code from app/
 COPY app/ .
 
+# [PERMISSIONS:WORKSPACE] Ensure workspace directory is writable by node user
+# Required for workspace persistence plugin to write files at runtime
+RUN mkdir -p /app/workspace/agents/aleff && \
+    chown -R node:node /app/workspace
+
 # [BUILD:COMPILE] Build TypeScript and bundle UI
 RUN CLAWDBOT_A2UI_SKIP_MISSING=1 pnpm build
 

@@ -1,79 +1,20 @@
 /**
- * PostgreSQL connection pool for Founder Memory
+ * [DB:PROXY] PostgreSQL connection proxy for Aleff Memory
  *
- * Supports configuration via DATABASE_URL or individual POSTGRES_* env vars.
- * Uses connection pooling with sensible defaults for long-running services.
+ * Re-exports from shared postgres module to maintain backward compatibility.
+ * The shared module provides a singleton pool used by all plugins.
+ *
+ * @version 2.0.0
+ * @updated 2026-01-29
  */
 
-import pg from "pg";
-import { logger } from "./logger.js";
-
-const { Pool } = pg;
-
-let pool: pg.Pool | null = null;
-
-export function getPool(): pg.Pool | null {
-  if (pool) return pool;
-
-  const connectionString = process.env.DATABASE_URL;
-  
-  if (!connectionString) {
-    // Try individual env vars
-    const host = process.env.POSTGRES_HOST;
-    const port = process.env.POSTGRES_PORT || "5432";
-    const user = process.env.POSTGRES_USER;
-    const password = process.env.POSTGRES_PASSWORD;
-    const database = process.env.POSTGRES_DB;
-
-    if (!host || !user || !password || !database) {
-      return null;
-    }
-
-    pool = new Pool({
-      host,
-      port: parseInt(port, 10),
-      user,
-      password,
-      database,
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-    });
-  } else {
-    pool = new Pool({
-      connectionString,
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-    });
-  }
-
-  // Handle pool errors
-  pool.on("error", (err) => {
-    logger.error({ error: err.message }, "postgres pool error");
-  });
-
-  return pool;
-}
-
-export function isPostgresConfigured(): boolean {
-  return Boolean(
-    process.env.DATABASE_URL ||
-    (process.env.POSTGRES_HOST && process.env.POSTGRES_USER && process.env.POSTGRES_PASSWORD && process.env.POSTGRES_DB)
-  );
-}
-
-export async function query<T = any>(text: string, params?: any[]): Promise<T[]> {
-  const pool = getPool();
-  if (!pool) {
-    throw new Error("Postgres not configured");
-  }
-  
-  const result = await pool.query(text, params);
-  return result.rows as T[];
-}
-
-export async function queryOne<T = any>(text: string, params?: any[]): Promise<T | null> {
-  const rows = await query<T>(text, params);
-  return rows[0] || null;
-}
+// [EXPORT:SHARED] Re-export from shared postgres module
+export {
+  getPool,
+  isPostgresConfigured,
+  query,
+  queryOne,
+  execute,
+  transaction,
+  healthCheck,
+} from "../../../src/shared/postgres/index.js";
