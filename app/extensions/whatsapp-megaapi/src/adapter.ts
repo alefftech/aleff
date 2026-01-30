@@ -37,6 +37,22 @@ import { MegaAPIClient } from "./api.js";
 import { logger } from "./logger.js";
 
 // =============================================================================
+// [UTIL:MESSAGEID] Extract messageId from nested API response
+// =============================================================================
+
+/**
+ * [FIX:MESSAGEID] MegaAPI returns different response structures:
+ * - { messageId: "..." }
+ * - { data: { messageId: "..." } }
+ * - { data: { id: "..." } }
+ *
+ * This helper normalizes all formats.
+ */
+function extractMessageId(result: any): string | undefined {
+  return result?.messageId || result?.data?.messageId || result?.data?.id;
+}
+
+// =============================================================================
 // [PROVIDER:INFO] Provider metadata
 // =============================================================================
 
@@ -151,15 +167,16 @@ class MegaAPIProvider implements WhatsAppProvider {
         }
 
         const result = await this.client.sendMessage("text", messageData);
+        const messageId = extractMessageId(result);
 
         logger.info(
-          { to: recipient, messageId: result.messageId },
+          { to: recipient, messageId },
           "text_sent"
         );
 
         return {
           success: true,
-          messageId: result.messageId,
+          messageId,
         };
       } catch (error: any) {
         logger.error({ to, error: error.message }, "text_send_failed");
@@ -188,15 +205,16 @@ class MegaAPIProvider implements WhatsAppProvider {
         if (options?.quotedMessageId) messageData.quotedMessageId = options.quotedMessageId;
 
         const result = await this.client.sendMessage("mediaUrl", messageData);
+        const messageId = extractMessageId(result);
 
         logger.info(
-          { to: recipient, messageId: result.messageId, type },
+          { to: recipient, messageId, type },
           "media_sent"
         );
 
         return {
           success: true,
-          messageId: result.messageId,
+          messageId,
         };
       } catch (error: any) {
         logger.error({ to, type, error: error.message }, "media_send_failed");
@@ -222,15 +240,16 @@ class MegaAPIProvider implements WhatsAppProvider {
         if (options?.address) messageData.address = options.address;
 
         const result = await this.client.sendMessage("location", messageData);
+        const messageId = extractMessageId(result);
 
         logger.info(
-          { to: recipient, messageId: result.messageId },
+          { to: recipient, messageId },
           "location_sent"
         );
 
         return {
           success: true,
-          messageId: result.messageId,
+          messageId,
         };
       } catch (error: any) {
         logger.error({ to, error: error.message }, "location_send_failed");
@@ -252,15 +271,16 @@ class MegaAPIProvider implements WhatsAppProvider {
         };
 
         const result = await this.client.sendMessage("contact", messageData);
+        const messageId = extractMessageId(result);
 
         logger.info(
-          { to: recipient, messageId: result.messageId },
+          { to: recipient, messageId },
           "contact_sent"
         );
 
         return {
           success: true,
-          messageId: result.messageId,
+          messageId,
         };
       } catch (error: any) {
         logger.error({ to, error: error.message }, "contact_send_failed");
@@ -282,15 +302,16 @@ class MegaAPIProvider implements WhatsAppProvider {
           messageId,
           fromChatId: fromJid,
         });
+        const resultMessageId = extractMessageId(result);
 
         logger.info(
-          { to: recipient, messageId: result.messageId },
+          { to: recipient, messageId: resultMessageId },
           "message_forwarded"
         );
 
         return {
           success: true,
-          messageId: result.messageId,
+          messageId: resultMessageId,
         };
       } catch (error: any) {
         logger.error({ to, error: error.message }, "forward_failed");

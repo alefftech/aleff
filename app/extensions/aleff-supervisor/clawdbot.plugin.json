@@ -1,0 +1,22 @@
+{
+  "id": "aleff-supervisor",
+  "name": "Aleff Supervisor",
+  "description": "Cross-channel supervisor for AleffAI - control WhatsApp, Instagram, etc. from Telegram",
+  "kind": "control",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "supervisorTelegramId": {
+        "type": "string",
+        "description": "Telegram user ID authorized to use supervisor commands (from env SUPERVISOR_TELEGRAM_ID)"
+      },
+      "defaultChannels": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": ["whatsapp", "telegram", "instagram"],
+        "description": "List of channels to register on startup"
+      }
+    }
+  }
+}

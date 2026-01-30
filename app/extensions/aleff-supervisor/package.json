@@ -1,0 +1,10 @@
+{
+  "name": "@moltbot/aleff-supervisor",
+  "version": "1.0.0",
+  "description": "Cross-channel supervisor for AleffAI - control child channels from Telegram",
+  "type": "module",
+  "main": "index.ts",
+  "peerDependencies": {
+    "moltbot": "*"
+  }
+}
