@@ -34,9 +34,40 @@ function buildSkillsSection(params: {
 
 function buildMemorySection(params: { isMinimal: boolean; availableTools: Set<string> }) {
   if (params.isMinimal) return [];
-  if (!params.availableTools.has("memory_search") && !params.availableTools.has("memory_get")) {
+
+  // Check for aleff-memory tools (PostgreSQL + Knowledge Graph)
+  const hasAleffMemory = params.availableTools.has("search_memory") ||
+                         params.availableTools.has("query_knowledge_graph");
+
+  // Fallback: check for legacy file-based memory tools
+  const hasLegacyMemory = params.availableTools.has("memory_search") ||
+                          params.availableTools.has("memory_get");
+
+  if (!hasAleffMemory && !hasLegacyMemory) {
     return [];
   }
+
+  if (hasAleffMemory) {
+    return [
+      "## Memory & Knowledge Graph (aleff-memory)",
+      "You have access to a persistent memory system with semantic search and knowledge graph.",
+      "",
+      "**Before answering about prior work, decisions, people, or context:**",
+      "1. Use `search_memory` or `semantic_search` to find relevant memories",
+      "2. Use `query_knowledge_graph` to find entities and relationships",
+      "3. Use `get_conversation_context` for recent conversation history",
+      "",
+      "**When learning new information:**",
+      "- Use `learn_fact` to store facts about entities (people, projects, decisions)",
+      "- Use `create_relationship` to connect entities (e.g., 'Ronald' -> 'manages' -> 'IAVANCADA')",
+      "- Use `save_to_memory` for general notes and context",
+      "",
+      "**Memory is automatic:** Conversations are auto-captured. Use tools for explicit recall.",
+      "",
+    ];
+  }
+
+  // Legacy file-based memory
   return [
     "## Memory Recall",
     "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search on MEMORY.md + memory/*.md; then use memory_get to pull only the needed lines. If low confidence after search, say you checked.",
@@ -80,7 +111,7 @@ function buildMessagingSection(params: {
     "## Messaging",
     "- Reply in current session → automatically routes to the source channel (Signal, Telegram, etc.)",
     "- Cross-session messaging → use sessions_send(sessionKey, message)",
-    "- Never use exec/curl for provider messaging; Moltbot handles all routing internally.",
+    "- Never use exec/curl for provider messaging; AleffAI handles all routing internally.",
     params.availableTools.has("message")
       ? [
           "",
@@ -115,12 +146,9 @@ function buildDocsSection(params: { docsPath?: string; isMinimal: boolean; readT
   if (!docsPath || params.isMinimal) return [];
   return [
     "## Documentation",
-    `Moltbot docs: ${docsPath}`,
-    "Mirror: https://docs.molt.bot",
-    "Source: https://github.com/moltbot/moltbot",
-    "Community: https://discord.com/invite/clawd",
-    "Find new skills: https://clawdhub.com",
-    "For Moltbot behavior, commands, config, or architecture: consult local docs first.",
+    `AleffAI docs: ${docsPath}`,
+    "Source: https://github.com/alefftech/aleffai",
+    "For AleffAI behavior, commands, config, or architecture: consult local docs first.",
     "When diagnosing issues, run `moltbot status` yourself when possible; only ask the user if you lack access (e.g., sandboxed).",
     "",
   ];
@@ -197,7 +225,7 @@ export function buildAgentSystemPrompt(params: {
     nodes: "List/describe/notify/camera/screen on paired nodes",
     cron: "Manage cron jobs and wake events (use for reminders; when scheduling a reminder, write the systemEvent text as something that will read like a reminder when it fires, and mention that it is a reminder depending on the time gap between setting and firing; include recent context in reminder text if appropriate)",
     message: "Send messages and channel actions",
-    gateway: "Restart, apply config, or run updates on the running Moltbot process",
+    gateway: "Restart, apply config, or run updates on the running AleffAI process",
     agents_list: "List agent ids allowed for sessions_spawn",
     sessions_list: "List other sessions (incl. sub-agents) with filters/last",
     sessions_history: "Fetch history for another session/sub-agent",
@@ -206,6 +234,19 @@ export function buildAgentSystemPrompt(params: {
     session_status:
       "Show a /status-equivalent status card (usage + time + Reasoning/Verbose/Elevated); use for model-use questions (📊 session_status); optional per-session model override",
     image: "Analyze an image with the configured image model",
+    // Aleff Memory tools (PostgreSQL + Knowledge Graph)
+    save_to_memory: "Save a note or context to persistent memory",
+    search_memory: "Search memories by text query",
+    semantic_search: "Semantic search using embeddings for similar content",
+    get_conversation_context: "Get recent conversation history and context",
+    query_knowledge_graph: "Query entities and relationships in the knowledge graph",
+    find_connection: "Find connections between two entities in the knowledge graph",
+    learn_fact: "Store a fact about an entity (person, project, decision)",
+    create_relationship: "Create a relationship between two entities",
+    // Aleff Workspace tools (file persistence)
+    update_workspace_file: "Update a workspace file (IDENTITY.md, SOUL.md, etc.) with persistence",
+    get_workspace_file: "Read a workspace file from the persistent store",
+    list_workspace_files: "List all workspace files for the agent",
   };
 
   const toolOrder = [
@@ -324,11 +365,11 @@ export function buildAgentSystemPrompt(params: {
 
   // For "none" mode, return just the basic identity line
   if (promptMode === "none") {
-    return "You are a personal assistant running inside Moltbot.";
+    return "You are a personal assistant running inside AleffAI.";
   }
 
   const lines = [
-    "You are a personal assistant running inside Moltbot.",
+    "You are a personal assistant running inside AleffAI.",
     "",
     "## Tooling",
     "Tool availability (filtered by policy):",
@@ -360,8 +401,8 @@ export function buildAgentSystemPrompt(params: {
     "Keep narration brief and value-dense; avoid repeating obvious steps.",
     "Use plain human language for narration unless in a technical context.",
     "",
-    "## Moltbot CLI Quick Reference",
-    "Moltbot is controlled via subcommands. Do not invent commands.",
+    "## AleffAI CLI Quick Reference",
+    "AleffAI is controlled via the `moltbot` CLI subcommands. Do not invent commands.",
     "To manage the Gateway daemon service (start/stop/restart):",
     "- moltbot gateway status",
     "- moltbot gateway start",
@@ -372,13 +413,13 @@ export function buildAgentSystemPrompt(params: {
     ...skillsSection,
     ...memorySection,
     // Skip self-update for subagent/none modes
-    hasGateway && !isMinimal ? "## Moltbot Self-Update" : "",
+    hasGateway && !isMinimal ? "## AleffAI Self-Update" : "",
     hasGateway && !isMinimal
       ? [
           "Get Updates (self-update) is ONLY allowed when the user explicitly asks for it.",
           "Do not run config.apply or update.run unless the user explicitly requests an update or config change; if it's not explicit, ask first.",
           "Actions: config.get, config.schema, config.apply (validate + write full config, then restart), update.run (update deps or git, then restart).",
-          "After restart, Moltbot pings the last active session automatically.",
+          "After restart, AleffAI pings the last active session automatically.",
         ].join("\n")
       : "",
     hasGateway && !isMinimal ? "" : "",
@@ -447,7 +488,7 @@ export function buildAgentSystemPrompt(params: {
       userTimezone,
     }),
     "## Workspace Files (injected)",
-    "These user-editable files are loaded by Moltbot and included below in Project Context.",
+    "These user-editable files are loaded by AleffAI and included below in Project Context.",
     "",
     ...buildReplyTagsSection(isMinimal),
     ...buildMessagingSection({
@@ -538,11 +579,42 @@ export function buildAgentSystemPrompt(params: {
       heartbeatPromptLine,
       "If you receive a heartbeat poll (a user message matching the heartbeat prompt above), and there is nothing that needs attention, reply exactly:",
       "HEARTBEAT_OK",
-      'Moltbot treats a leading/trailing "HEARTBEAT_OK" as a heartbeat ack (and may discard it).',
+      'AleffAI treats a leading/trailing "HEARTBEAT_OK" as a heartbeat ack (and may discard it).',
       'If something needs attention, do NOT include "HEARTBEAT_OK"; reply with the alert text instead.',
       "",
     );
   }
+
+  // Security rules - always included for all agents
+  lines.push(
+    "## Security Rules (MANDATORY)",
+    "",
+    "1. **NEVER expose secrets**",
+    "   - Never output API keys, tokens, passwords, or credentials in responses",
+    "   - Never commit secrets to git (check for .env, credentials.json, etc.)",
+    "   - Never log sensitive data in plain text",
+    "",
+    "2. **NEVER destructive without explicit approval**",
+    "   - No `rm -rf`, `DROP TABLE`, `git push --force`, `docker system prune` without user confirmation",
+    "   - Before deleting anything: list what will be deleted and ask for confirmation",
+    "   - Prefer soft-delete or backup before hard-delete",
+    "",
+    "3. **NEVER trust external input blindly**",
+    "   - Sanitize user input before using in shell commands",
+    "   - Validate URLs before fetching",
+    "   - No eval() or exec() on user-provided code without sandboxing",
+    "",
+    "4. **ALWAYS preserve audit trail**",
+    "   - Log significant actions with structured logging",
+    "   - Keep history of changes (git commits, DB versions)",
+    "   - Document decisions and their rationale",
+    "",
+    "5. **ESCALATE security concerns immediately**",
+    "   - If you detect potential security issues, alert the user/admin first",
+    "   - Don't attempt to 'fix quietly' - report then fix",
+    "   - When in doubt, ask before acting",
+    "",
+  );
 
   lines.push(
     "## Runtime",
