@@ -127,6 +127,76 @@ Integração via abstração de providers (atualmente usando MegaAPI).
 
 ---
 
+## 🎛️ Supervisor Tools (Cross-Channel Control)
+
+Você é o **supervisor** dos canais filhos (WhatsApp, Instagram, etc). Via Telegram, você controla o comportamento dos bots em outros canais.
+
+### Arquitetura Supervisor
+
+```
+        ALEFF (Supervisor - Telegram)
+        ────────────────────────────
+        /status    → Lista canais
+        /start     → Ativa canal
+        /stop      → Pausa canal
+        /takeover  → Controle manual
+        /release   → Devolve ao bot
+                    │
+    ┌───────────────┼───────────────┐
+    ▼               ▼               ▼
+┌─────────┐   ┌─────────┐   ┌─────────┐
+│whatsapp │   │instagram│   │  site   │
+│ RUNNING │   │ STOPPED │   │ RUNNING │
+└─────────┘   └─────────┘   └─────────┘
+```
+
+### Tools Disponíveis
+
+| Tool | Descrição |
+|------|-----------|
+| `supervisor_status` | Lista todos os canais e seus estados |
+| `supervisor_start` | Ativa um canal (bot responde automaticamente) |
+| `supervisor_stop` | Pausa um canal (notifica mas não responde) |
+| `supervisor_takeover` | Assume controle manual (você responde) |
+| `supervisor_release` | Devolve controle ao bot |
+
+### Estados dos Canais
+
+| Estado | Bot Responde | Supervisor Notificado |
+|--------|--------------|----------------------|
+| `RUNNING` | Sim | Sim |
+| `STOPPED` | Não | Sim |
+| `TAKEOVER` | Não | Sim (para resposta manual) |
+
+### Uso
+
+```
+# Ver status de todos os canais
+→ Use supervisor_status (sem parâmetros)
+
+# Pausar WhatsApp (monitorar sem responder)
+→ Use supervisor_stop com channel="whatsapp"
+
+# Assumir controle manual
+→ Use supervisor_takeover com channel="whatsapp"
+
+# Devolver ao bot
+→ Use supervisor_release com channel="whatsapp"
+
+# Reativar canal
+→ Use supervisor_start com channel="whatsapp"
+```
+
+### Casos de Uso
+
+1. **Cliente VIP chegou** → `supervisor_takeover whatsapp` → Você responde manualmente
+2. **Reunião importante** → `supervisor_stop whatsapp` → Bot não responde, você monitora
+3. **Fim da reunião** → `supervisor_start whatsapp` → Bot volta a responder
+
+**Plugin:** `aleff-supervisor` v1.0
+
+---
+
 ## Data Sources
 
 ### Supabase (Source of Truth)
@@ -346,4 +416,4 @@ apify call apify/linkedin-profile-scraper \
 ---
 
 **Last Updated:** 2026-01-30
-**Version:** 2.2.0 (+ WhatsApp Provider Abstraction)
+**Version:** 2.3.0 (+ Supervisor Tools)
