@@ -185,6 +185,7 @@ class MegaAPIProvider implements WhatsAppProvider {
         if (options?.fileName) messageData.fileName = options.fileName;
         if (options?.mimeType) messageData.mimeType = options.mimeType;
         if (options?.ptt && type === "audio") messageData.ptt = true;
+        if (options?.quotedMessageId) messageData.quotedMessageId = options.quotedMessageId;
 
         const result = await this.client.sendMessage("mediaUrl", messageData);
 

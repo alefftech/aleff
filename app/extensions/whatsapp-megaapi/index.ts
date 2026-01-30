@@ -3,6 +3,7 @@
  *
  * Implements WhatsAppProvider interface for MegaAPI Starter.
  * Registers the "megaapi" provider with whatsapp-core.
+ * Registers "whatsapp" channel with direct delivery mode.
  *
  * Environment Variables:
  * - MEGAAPI_API_HOST: API host (default: apistart01.megaapi.com.br)
@@ -11,12 +12,13 @@
  * - MEGAAPI_WEBHOOK_TOKEN: Webhook validation token (optional)
  * - MEGAAPI_ALLOW_FROM: Comma-separated allowlist (optional, empty = public)
  *
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 import type { MoltbotPluginApi } from "clawdbot/plugin-sdk";
 import { logger } from "./src/logger.js";
 import { createMegaAPIProvider } from "./src/adapter.js";
+import { whatsappMegaapiChannel } from "./src/channel.js";
 import {
   normalizeMegaAPIWebhook,
   validateMegaAPIWebhookToken,
@@ -85,9 +87,22 @@ const plugin = {
         instanceKey: config.instanceKey,
         allowlistSize: config.allowFrom.length,
         publicChannel: config.allowFrom.length === 0,
-        version: "1.0.0",
+        version: "1.1.0",
       },
-      "plugin_registered"
+      "provider_registered"
+    );
+
+    // [CHANNEL:OUTBOUND] Register WhatsApp channel with direct delivery
+    // This OVERRIDES the bundled gateway-based whatsapp channel
+    api.registerChannel({ plugin: whatsappMegaapiChannel });
+
+    logger.info(
+      {
+        channelId: whatsappMegaapiChannel.id,
+        deliveryMode: "direct",
+        note: "Overrides bundled gateway-based whatsapp channel",
+      },
+      "channel_registered"
     );
 
     // [INFO:WEBHOOK] Log webhook configuration info
@@ -159,3 +174,5 @@ export {
   validateMegaAPIWebhookToken,
   isAllowedSender,
 } from "./src/webhook-normalizer.js";
+export { whatsappMegaapiChannel } from "./src/channel.js";
+export { megaapiOutbound } from "./src/outbound.js";
