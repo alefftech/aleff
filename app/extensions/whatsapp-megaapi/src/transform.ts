@@ -1,8 +1,8 @@
 /**
- * [TRANSFORM:MEGAAPI] WhatsApp Webhook Transform
+ * [TRANSFORM:MEGAAPI] WhatsApp Webhook Transform (Standalone)
  *
  * Hook transform que processa webhooks do MegaAPI e normaliza para o moltbot.
- * Usa o adapter MegaAPI para download de mídia.
+ * Auto-contido - não depende de imports externos.
  *
  * Suporta:
  * - Texto (conversation, extendedTextMessage)
@@ -10,23 +10,16 @@
  * - Áudio/Voice Note (audioMessage)
  * - Vídeo (videoMessage)
  * - Documento (documentMessage)
- * - Sticker (stickerMessage)
+ * - Sticker, Location, Contact
  */
-
-import { MegaAPIClient } from "./api.js";
-import { logger } from "./logger.js";
 
 // =============================================================================
 // [CONFIG:ENV] Configuration from environment
 // =============================================================================
 
-function getConfig() {
-  return {
-    apiHost: process.env.MEGAAPI_API_HOST || "apistart01.megaapi.com.br",
-    instanceKey: process.env.MEGAAPI_INSTANCE_KEY || "",
-    apiToken: process.env.MEGAAPI_TOKEN || "",
-  };
-}
+const MEGAAPI_HOST = process.env.MEGAAPI_API_HOST || "apistart01.megaapi.com.br";
+const MEGAAPI_TOKEN = process.env.MEGAAPI_TOKEN || "";
+const MEGAAPI_INSTANCE = process.env.MEGAAPI_INSTANCE_KEY || "";
 
 // =============================================================================
 // [TYPE:PAYLOAD] MegaAPI Webhook Payload
@@ -106,29 +99,48 @@ interface TransformResult {
 }
 
 // =============================================================================
+// [FUNC:LOG] Simple logging
+// =============================================================================
+
+function log(level: string, data: Record<string, unknown>, msg: string) {
+  const entry = {
+    level,
+    time: Date.now(),
+    name: "whatsapp-transform",
+    ...data,
+    msg,
+  };
+  console.log(JSON.stringify(entry));
+}
+
+// =============================================================================
 // [FUNC:DOWNLOAD] Download media from MegaAPI
 // =============================================================================
 
 async function downloadMedia(
-  client: MegaAPIClient,
   mediaData: MediaMessageData,
   messageType: string
 ): Promise<{ url?: string; base64?: string; error?: string }> {
   // Se já tem URL HTTP direta, usa ela
   if (mediaData.url && mediaData.url.startsWith("http")) {
-    logger.debug({ url: mediaData.url }, "using_direct_url");
+    log("debug", { url: mediaData.url }, "using_direct_url");
     return { url: mediaData.url };
+  }
+
+  // Verifica config
+  if (!MEGAAPI_TOKEN || !MEGAAPI_INSTANCE) {
+    return { error: "MegaAPI not configured" };
   }
 
   // Faz download via API
   try {
     const response = await fetch(
-      `https://${getConfig().apiHost}/rest/instance/downloadMediaMessage/${getConfig().instanceKey}`,
+      `https://${MEGAAPI_HOST}/rest/instance/downloadMediaMessage/${MEGAAPI_INSTANCE}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${getConfig().apiToken}`,
+          Authorization: `Bearer ${MEGAAPI_TOKEN}`,
         },
         body: JSON.stringify({
           messageData: {
@@ -144,19 +156,19 @@ async function downloadMedia(
 
     if (!response.ok) {
       const text = await response.text();
-      logger.error({ status: response.status, error: text }, "media_download_failed");
+      log("error", { status: response.status, error: text }, "media_download_failed");
       return { error: `Download failed: ${response.status}` };
     }
 
     const result = await response.json();
-    logger.info({ messageType, hasBase64: !!result.base64 }, "media_downloaded");
+    log("info", { messageType, hasBase64: !!result.base64 }, "media_downloaded");
 
     return {
       base64: result.base64 || result.data,
       url: result.url,
     };
   } catch (err: any) {
-    logger.error({ error: err.message }, "media_download_error");
+    log("error", { error: err.message }, "media_download_error");
     return { error: err.message };
   }
 }
@@ -173,18 +185,15 @@ export default async function transform(
 
   // [GUARD:OWN] Skip own messages
   if (data?.key?.fromMe) {
-    logger.debug({ messageId: data.key.id }, "skipping_own_message");
+    log("debug", { messageId: data.key.id }, "skipping_own_message");
     return null;
   }
 
   // [GUARD:MESSAGE] Skip if no message
   if (!data?.message) {
-    logger.debug({}, "skipping_no_message");
+    log("debug", {}, "skipping_no_message");
     return null;
   }
-
-  const config = getConfig();
-  const client = new MegaAPIClient(config);
 
   const sender = {
     jid: data.key?.remoteJid || "",
@@ -202,23 +211,23 @@ export default async function transform(
   // =========================================================================
   if (message.conversation) {
     content = message.conversation;
-    logger.info({ from: sender.jid, type: "text" }, "processing_text");
+    log("info", { from: sender.jid, type: "text" }, "processing_text");
   }
   // =========================================================================
   // [PROCESS:EXTENDED_TEXT] Extended text (reply, link preview)
   // =========================================================================
   else if (message.extendedTextMessage?.text) {
     content = message.extendedTextMessage.text;
-    logger.info({ from: sender.jid, type: "extended_text" }, "processing_text");
+    log("info", { from: sender.jid, type: "extended_text" }, "processing_text");
   }
   // =========================================================================
   // [PROCESS:IMAGE] Image message
   // =========================================================================
   else if (message.imageMessage) {
     const img = message.imageMessage;
-    logger.info({ from: sender.jid, type: "image" }, "processing_media");
+    log("info", { from: sender.jid, type: "image" }, "processing_media");
 
-    const media = await downloadMedia(client, img, "imageMessage");
+    const media = await downloadMedia(img, "imageMessage");
 
     if (media.url || media.base64) {
       mediaInfo = "[IMAGEM]";
@@ -242,9 +251,9 @@ export default async function transform(
   else if (message.audioMessage) {
     const audio = message.audioMessage;
     const isVoiceNote = audio.ptt === true;
-    logger.info({ from: sender.jid, type: isVoiceNote ? "ptt" : "audio" }, "processing_media");
+    log("info", { from: sender.jid, type: isVoiceNote ? "ptt" : "audio" }, "processing_media");
 
-    const media = await downloadMedia(client, audio, "audioMessage");
+    const media = await downloadMedia(audio, "audioMessage");
 
     if (media.url || media.base64) {
       mediaInfo = isVoiceNote ? "[ÁUDIO DE VOZ]" : "[ÁUDIO]";
@@ -267,9 +276,9 @@ export default async function transform(
   // =========================================================================
   else if (message.videoMessage) {
     const video = message.videoMessage;
-    logger.info({ from: sender.jid, type: "video" }, "processing_media");
+    log("info", { from: sender.jid, type: "video" }, "processing_media");
 
-    const media = await downloadMedia(client, video, "videoMessage");
+    const media = await downloadMedia(video, "videoMessage");
 
     if (media.url || media.base64) {
       mediaInfo = "[VÍDEO]";
@@ -293,9 +302,9 @@ export default async function transform(
   else if (message.documentMessage) {
     const doc = message.documentMessage;
     const fileName = doc.fileName || "documento";
-    logger.info({ from: sender.jid, type: "document", fileName }, "processing_media");
+    log("info", { from: sender.jid, type: "document", fileName }, "processing_media");
 
-    const media = await downloadMedia(client, doc, "documentMessage");
+    const media = await downloadMedia(doc, "documentMessage");
 
     if (media.url || media.base64) {
       mediaInfo = `[DOCUMENTO: ${fileName}]`;
@@ -318,7 +327,7 @@ export default async function transform(
   // [PROCESS:STICKER] Sticker message
   // =========================================================================
   else if (message.stickerMessage) {
-    logger.info({ from: sender.jid, type: "sticker" }, "processing_sticker");
+    log("info", { from: sender.jid, type: "sticker" }, "processing_sticker");
     content = "[Sticker]";
   }
   // =========================================================================
@@ -326,7 +335,7 @@ export default async function transform(
   // =========================================================================
   else if (message.locationMessage) {
     const loc = message.locationMessage;
-    logger.info({ from: sender.jid, type: "location" }, "processing_location");
+    log("info", { from: sender.jid, type: "location" }, "processing_location");
     const name = loc.name ? ` - ${loc.name}` : "";
     content = `[Localização${name}: ${loc.degreesLatitude}, ${loc.degreesLongitude}]`;
   }
@@ -335,14 +344,14 @@ export default async function transform(
   // =========================================================================
   else if (message.contactMessage) {
     const contact = message.contactMessage;
-    logger.info({ from: sender.jid, type: "contact" }, "processing_contact");
+    log("info", { from: sender.jid, type: "contact" }, "processing_contact");
     content = `[Contato: ${contact.displayName || "sem nome"}]`;
   }
   // =========================================================================
   // [PROCESS:UNKNOWN] Unknown message type
   // =========================================================================
   else {
-    logger.warn({ from: sender.jid, messageKeys: Object.keys(message) }, "unknown_message_type");
+    log("warn", { from: sender.jid, messageKeys: Object.keys(message) }, "unknown_message_type");
     content = "[Mensagem não suportada]";
   }
 
@@ -350,19 +359,16 @@ export default async function transform(
   const finalMessage = [mediaInfo, content].filter(Boolean).join(" ").trim();
 
   if (!finalMessage) {
-    logger.debug({ from: sender.jid }, "empty_message_skipped");
+    log("debug", { from: sender.jid }, "empty_message_skipped");
     return null;
   }
 
-  logger.info(
-    {
-      from: sender.jid,
-      name: sender.name,
-      hasMedia: !!channel,
-      messageLength: finalMessage.length,
-    },
-    "transform_complete"
-  );
+  log("info", {
+    from: sender.jid,
+    name: sender.name,
+    hasMedia: !!channel,
+    messageLength: finalMessage.length,
+  }, "transform_complete");
 
   return {
     message: finalMessage,
