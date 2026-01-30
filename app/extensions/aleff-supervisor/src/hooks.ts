@@ -44,11 +44,19 @@ export interface HookContext {
 // =============================================================================
 
 /**
+ * [HOOK:MESSAGE_SENDING] Result type for message_sending hook
+ */
+export interface MessageSendingResult {
+  content?: string;
+  cancel?: boolean;
+}
+
+/**
  * [HOOK:MESSAGE_SENDING] Intercept outgoing messages
  *
  * Returns:
- * - true: Allow the message to be sent
- * - false: Block the message
+ * - undefined or {}: Allow the message to be sent
+ * - { cancel: true }: Block the message
  *
  * Blocking rules:
  * - STOPPED: Block all bot responses
@@ -58,7 +66,7 @@ export interface HookContext {
 export async function onMessageSending(
   event: MessageSendingEvent,
   ctx: HookContext
-): Promise<boolean> {
+): Promise<MessageSendingResult | void> {
   const channelId = ctx.channelId?.toLowerCase() || "unknown";
   const state = getChannelState(channelId);
 
@@ -68,7 +76,7 @@ export async function onMessageSending(
       { channelId, state, isSupervisor: true },
       "message_allowed_supervisor"
     );
-    return true;
+    return; // Allow
   }
 
   // [STATE:CHECK] Block if channel is stopped or taken over
@@ -83,7 +91,7 @@ export async function onMessageSending(
       },
       "message_blocked_by_supervisor"
     );
-    return false;
+    return { cancel: true }; // Block the message
   }
 
   // [STATE:RUNNING] Allow message
@@ -91,7 +99,7 @@ export async function onMessageSending(
     { channelId, state, to: event.to },
     "message_allowed"
   );
-  return true;
+  return; // Allow
 }
 
 // =============================================================================

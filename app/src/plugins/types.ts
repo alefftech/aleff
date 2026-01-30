@@ -294,6 +294,7 @@ export type PluginHookName =
   | "message_received"
   | "message_sending"
   | "message_sent"
+  | "before_agent_dispatch"
   | "before_tool_call"
   | "after_tool_call"
   | "tool_result_persist"
@@ -374,6 +375,25 @@ export type PluginHookMessageSentEvent = {
   content: string;
   success: boolean;
   error?: string;
+};
+
+// before_agent_dispatch hook - allows supervisor to intercept before bot responds
+export type PluginHookBeforeAgentDispatchEvent = {
+  from: string;
+  content: string;
+  timestamp: number;
+  totalBuffered: number;
+  channelId: string;
+  conversationId?: string;
+  messageId?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type PluginHookBeforeAgentDispatchResult = {
+  action: "approve" | "intercept" | "modify";
+  modifiedContent?: string;
+  interceptReason?: string;
+  supervisorNotified?: boolean;
 };
 
 // Tool context
@@ -489,6 +509,13 @@ export type PluginHookHandlerMap = {
     event: PluginHookMessageSentEvent,
     ctx: PluginHookMessageContext,
   ) => Promise<void> | void;
+  before_agent_dispatch: (
+    event: PluginHookBeforeAgentDispatchEvent,
+    ctx: PluginHookMessageContext,
+  ) =>
+    | Promise<PluginHookBeforeAgentDispatchResult | void>
+    | PluginHookBeforeAgentDispatchResult
+    | void;
   before_tool_call: (
     event: PluginHookBeforeToolCallEvent,
     ctx: PluginHookToolContext,

@@ -183,6 +183,90 @@ export async function dispatchReplyFromConfig(params: {
       });
   }
 
+  // [HOOK:BEFORE_AGENT_DISPATCH] Run before_agent_dispatch hook for supervisor interception
+  // This allows plugins (like aleff-supervisor) to intercept messages BEFORE the bot responds
+  if (hookRunner?.hasHooks("before_agent_dispatch")) {
+    const timestamp =
+      typeof ctx.Timestamp === "number" && Number.isFinite(ctx.Timestamp)
+        ? ctx.Timestamp
+        : Date.now();
+    const messageIdForHook =
+      ctx.MessageSidFull ?? ctx.MessageSid ?? ctx.MessageSidFirst ?? ctx.MessageSidLast;
+    const content =
+      typeof ctx.BodyForCommands === "string"
+        ? ctx.BodyForCommands
+        : typeof ctx.RawBody === "string"
+          ? ctx.RawBody
+          : typeof ctx.Body === "string"
+            ? ctx.Body
+            : "";
+    const channelId = (ctx.OriginatingChannel ?? ctx.Surface ?? ctx.Provider ?? "").toLowerCase();
+    const conversationId = ctx.OriginatingTo ?? ctx.To ?? ctx.From ?? undefined;
+
+    try {
+      // [TIMEOUT:5S] Auto-approve after 5 seconds if hook doesn't respond
+      const AUTO_APPROVE_TIMEOUT_MS = 5000;
+
+      const dispatchResult = await Promise.race([
+        hookRunner.runBeforeAgentDispatch(
+          {
+            from: ctx.From ?? "",
+            content,
+            timestamp,
+            totalBuffered: 1, // Single message for now (buffer aggregation can be added later)
+            channelId,
+            conversationId,
+            messageId: messageIdForHook,
+            metadata: {
+              to: ctx.To,
+              provider: ctx.Provider,
+              surface: ctx.Surface,
+              threadId: ctx.MessageThreadId,
+              senderId: ctx.SenderId,
+              senderName: ctx.SenderName,
+            },
+          },
+          {
+            channelId,
+            accountId: ctx.AccountId,
+            conversationId,
+          },
+        ),
+        new Promise<undefined>((resolve) =>
+          setTimeout(() => resolve(undefined), AUTO_APPROVE_TIMEOUT_MS)
+        ),
+      ]);
+
+      // [ACTION:INTERCEPT] If intercepted, skip agent processing entirely
+      if (dispatchResult?.action === "intercept") {
+        logVerbose(
+          `dispatch-from-config: before_agent_dispatch intercepted: ${dispatchResult.interceptReason ?? "no reason"}`,
+        );
+        recordProcessed("skipped", { reason: "supervisor_intercepted" });
+        return { queuedFinal: false, counts: dispatcher.getQueuedCounts() };
+      }
+
+      // [ACTION:MODIFY] If modified, update the context content
+      // Note: This would require modifying ctx which is complex.
+      // For now, we log and continue with original content.
+      if (dispatchResult?.action === "modify" && dispatchResult.modifiedContent) {
+        logVerbose(
+          `dispatch-from-config: before_agent_dispatch modify requested (not implemented yet)`,
+        );
+        // Future: Implement content modification
+        // ctx.BodyForCommands = dispatchResult.modifiedContent;
+      }
+
+      // [ACTION:APPROVE] Continue with normal processing (default)
+      if (dispatchResult?.supervisorNotified) {
+        logVerbose(`dispatch-from-config: supervisor notified of incoming message`);
+      }
+    } catch (err) {
+      // On error, continue with normal processing (fail-open)
+      logVerbose(`dispatch-from-config: before_agent_dispatch hook failed: ${String(err)}`);
+    }
+  }
+
   // Check if we should route replies to originating channel instead of dispatcher.
   // Only route when the originating channel is DIFFERENT from the current surface.
   // This handles cross-provider routing (e.g., message from Telegram being processed

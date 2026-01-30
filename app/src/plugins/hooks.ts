@@ -11,6 +11,8 @@ import type {
   PluginHookAfterToolCallEvent,
   PluginHookAgentContext,
   PluginHookAgentEndEvent,
+  PluginHookBeforeAgentDispatchEvent,
+  PluginHookBeforeAgentDispatchResult,
   PluginHookBeforeAgentStartEvent,
   PluginHookBeforeAgentStartResult,
   PluginHookBeforeCompactionEvent,
@@ -38,6 +40,8 @@ import type {
 // Re-export types for consumers
 export type {
   PluginHookAgentContext,
+  PluginHookBeforeAgentDispatchEvent,
+  PluginHookBeforeAgentDispatchResult,
   PluginHookBeforeAgentStartEvent,
   PluginHookBeforeAgentStartResult,
   PluginHookAgentEndEvent,
@@ -272,6 +276,40 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     return runVoidHook("message_sent", event, ctx);
   }
 
+  /**
+   * Run before_agent_dispatch hook.
+   * Allows plugins (like supervisor) to intercept messages before the agent responds.
+   * Runs sequentially, merging results. First "intercept" or "modify" action wins.
+   *
+   * Returns:
+   * - action: "approve" (default), "intercept" (block agent), or "modify" (change content)
+   * - modifiedContent: New content if action is "modify"
+   * - interceptReason: Why message was intercepted
+   * - supervisorNotified: Whether supervisor was notified
+   */
+  async function runBeforeAgentDispatch(
+    event: PluginHookBeforeAgentDispatchEvent,
+    ctx: PluginHookMessageContext,
+  ): Promise<PluginHookBeforeAgentDispatchResult | undefined> {
+    return runModifyingHook<"before_agent_dispatch", PluginHookBeforeAgentDispatchResult>(
+      "before_agent_dispatch",
+      event,
+      ctx,
+      (acc, next) => {
+        // First non-approve action wins
+        if (acc?.action && acc.action !== "approve") {
+          return acc;
+        }
+        return {
+          action: next.action ?? acc?.action ?? "approve",
+          modifiedContent: next.modifiedContent ?? acc?.modifiedContent,
+          interceptReason: next.interceptReason ?? acc?.interceptReason,
+          supervisorNotified: next.supervisorNotified ?? acc?.supervisorNotified,
+        };
+      },
+    );
+  }
+
   // =========================================================================
   // Tool Hooks
   // =========================================================================
@@ -441,6 +479,7 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     runMessageReceived,
     runMessageSending,
     runMessageSent,
+    runBeforeAgentDispatch,
     // Tool hooks
     runBeforeToolCall,
     runAfterToolCall,
