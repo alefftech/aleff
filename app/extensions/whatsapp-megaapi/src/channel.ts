@@ -8,8 +8,8 @@
  * enabling outbound replies via MegaAPI instead of WhatsApp Web.
  */
 
-import type { ChannelPlugin } from "../../../../src/channels/plugins/types.plugin.js";
-import { getChatChannelMeta } from "../../../../src/channels/registry.js";
+import type { ChannelPlugin } from "../../../src/channels/plugins/types.plugin.js";
+import { getChatChannelMeta } from "../../../src/channels/registry.js";
 import { megaapiOutbound } from "./outbound.js";
 import { logger } from "./logger.js";
 

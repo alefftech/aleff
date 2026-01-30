@@ -6,7 +6,7 @@
  * MegaAPI HTTP API calls.
  */
 
-import type { ChannelOutboundAdapter } from "../../../../src/channels/plugins/types.adapters.js";
+import type { ChannelOutboundAdapter } from "../../../src/channels/plugins/types.adapters.js";
 import { getWhatsAppClient } from "../../whatsapp-core/index.js";
 import { logger } from "./logger.js";
 
