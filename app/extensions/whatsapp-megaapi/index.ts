@@ -19,11 +19,12 @@ import type { MoltbotPluginApi } from "clawdbot/plugin-sdk";
 import { logger } from "./src/logger.js";
 import { createMegaAPIProvider } from "./src/adapter.js";
 import { whatsappMegaapiChannel } from "./src/channel.js";
+import { setMegaAPIRuntime } from "./src/runtime.js";
 import {
-  normalizeMegaAPIWebhook,
-  validateMegaAPIWebhookToken,
-  isAllowedSender,
-} from "./src/webhook-normalizer.js";
+  handleMegaAPIWebhookRequest,
+  getMegaAPIWebhookPath,
+  getMegaAPIWebhookPaths,
+} from "./src/webhook-handler.js";
 
 // Import from whatsapp-core (sibling plugin)
 import { getWhatsAppClient } from "../whatsapp-core/index.js";
@@ -69,6 +70,9 @@ const plugin = {
       return;
     }
 
+    // [RUNTIME:SET] Store runtime reference for monitor module
+    setMegaAPIRuntime(api.runtime);
+
     // [REGISTER:PROVIDER] Register with whatsapp-core
     const client = getWhatsAppClient();
     client.registerProvider("megaapi", createMegaAPIProvider);
@@ -105,62 +109,20 @@ const plugin = {
       "channel_registered"
     );
 
-    // [INFO:WEBHOOK] Log webhook configuration info
+    // [REGISTER:HTTP] Register HTTP handler for webhooks
+    // This routes incoming webhooks through the dispatch pipeline so all hooks
+    // (message_received, before_agent_dispatch, message_sent) fire correctly.
+    api.registerHttpHandler(handleMegaAPIWebhookRequest);
+
+    const webhookPaths = getMegaAPIWebhookPaths();
     logger.info(
       {
+        webhookPaths,
         webhookConfigured: !!config.webhookToken,
-        message: "Configure webhook in MegaAPI dashboard: https://your-domain/hooks/megaapi",
+        message: `Configure webhook in MegaAPI dashboard: https://your-domain${webhookPaths[0]}`,
       },
-      "webhook_info"
+      "webhook_handler_registered"
     );
-
-    // [HOOK:MESSAGE] Hook into message_received for webhook processing
-    if (api.onHook) {
-      api.onHook("webhook_received", async (event: any) => {
-        // Check if this is for us
-        if (event.hookId !== "megaapi") {
-          return;
-        }
-
-        // [SECURITY:TOKEN] Validate webhook token
-        if (!validateMegaAPIWebhookToken(event.token, config.webhookToken)) {
-          logger.warn({}, "webhook_unauthorized");
-          return { status: 401, body: { error: "Unauthorized" } };
-        }
-
-        // [NORMALIZE:PAYLOAD] Normalize the webhook payload
-        const normalized = normalizeMegaAPIWebhook(event.payload);
-        if (!normalized) {
-          return { status: 200, body: { status: "ignored" } };
-        }
-
-        // [SECURITY:ALLOWLIST] Check allowlist for messages
-        if (normalized.message) {
-          if (!isAllowedSender(normalized.message.from, config.allowFrom)) {
-            logger.info(
-              { from: normalized.message.from },
-              "message_rejected_allowlist"
-            );
-            return { status: 200, body: { status: "rejected_allowlist" } };
-          }
-        }
-
-        // [EMIT:EVENT] Emit normalized event for further processing
-        if (api.emit) {
-          await api.emit("whatsapp:message", normalized);
-        }
-
-        logger.info(
-          {
-            type: normalized.type,
-            from: normalized.message?.from,
-          },
-          "webhook_processed"
-        );
-
-        return { status: 200, body: { status: "ok" } };
-      });
-    }
   },
 };
 
