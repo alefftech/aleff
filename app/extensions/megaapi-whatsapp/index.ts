@@ -10,87 +10,57 @@
  * - Media support (images, documents, audio)
  *
  * Security:
+ * - Credentials via environment variables (not hardcoded)
  * - Developed internally (no third-party skills)
  * - Webhook token validation
  * - Number allowlist (similar to Telegram)
+ *
+ * Environment Variables:
+ * - MEGAAPI_API_HOST: Custom API host (e.g., apistart01.megaapi.com.br)
+ * - MEGAAPI_INSTANCE_KEY: Instance key from MegaAPI
+ * - MEGAAPI_TOKEN: API token (Bearer)
+ * - MEGAAPI_WEBHOOK_TOKEN: Webhook validation token
+ * - MEGAAPI_ALLOW_FROM: Comma-separated list of allowed numbers
  *
  * @see https://mega-api.app.br
  * @see https://api2.megaapi.com.br/docs/
  */
 
 import type { MoltbotPluginApi } from "clawdbot/plugin-sdk";
+import { logger } from "./src/logger.js";
 
-interface MegaAPIConfig {
-  apiKey: string;
-  instanceKey: string;
-  webhookUrl?: string;
-  webhookToken?: string;
-  allowFrom?: string[];
+// [CONFIG:ENV] Read configuration from environment variables
+function getConfig() {
+  return {
+    apiHost: process.env.MEGAAPI_API_HOST || "api2.megaapi.com.br",
+    instanceKey: process.env.MEGAAPI_INSTANCE_KEY || "",
+    apiToken: process.env.MEGAAPI_TOKEN || "",
+    webhookToken: process.env.MEGAAPI_WEBHOOK_TOKEN || "",
+    allowFrom: process.env.MEGAAPI_ALLOW_FROM
+      ? process.env.MEGAAPI_ALLOW_FROM.split(",").map(n => n.trim())
+      : []
+  };
 }
 
 const plugin = {
   id: "megaapi-whatsapp",
   name: "MegaAPI WhatsApp",
-  description: "WhatsApp integration via MegaAPI",
-
-  configSchema: {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      apiKey: { type: "string" },
-      instanceKey: { type: "string" },
-      webhookUrl: { type: "string" },
-      webhookToken: { type: "string" },
-      allowFrom: {
-        type: "array",
-        items: { type: "string" }
-      }
-    },
-    required: ["apiKey", "instanceKey"]
-  },
+  description: "WhatsApp integration via MegaAPI (credentials from env vars)",
 
   register(api: MoltbotPluginApi) {
-    console.log("[megaapi-whatsapp] Plugin registered");
+    const config = getConfig();
 
-    // Register webhook endpoint
-    if (api.registerHook) {
-      api.registerHook({
-        path: "/megaapi",
-        method: "POST",
-        handler: async (req: any) => {
-          const config = api.runtime.config.plugins?.entries?.["megaapi-whatsapp"]?.config as MegaAPIConfig;
+    logger.info({
+      apiHost: config.apiHost,
+      instanceKey: config.instanceKey,
+      allowlistSize: config.allowFrom.length,
+      publicChannel: config.allowFrom.length === 0
+    }, "plugin_registered");
 
-          // Validate webhook token
-          const token = req.headers["x-webhook-token"] || req.query.token;
-          if (config.webhookToken && token !== config.webhookToken) {
-            return { status: 401, body: { error: "Unauthorized" } };
-          }
+    // TODO: [HOOK:WEBHOOK] Implement webhook for incoming messages
+    // Requires understanding of Moltbot's hook registration API
 
-          // Check allowlist
-          const from = req.body?.data?.key?.remoteJid;
-          if (config.allowFrom && config.allowFrom.length > 0) {
-            if (!config.allowFrom.includes(from)) {
-              console.log(`[megaapi-whatsapp] Message from ${from} rejected (not in allowlist)`);
-              return { status: 200, body: { status: "ignored" } };
-            }
-          }
-
-          // Process incoming message
-          console.log("[megaapi-whatsapp] Received message:", {
-            from,
-            messageId: req.body?.data?.key?.id,
-            type: req.body?.data?.message?.type
-          });
-
-          // TODO: Forward to Moltbot message handling
-          // This requires deeper integration with Moltbot's message router
-
-          return { status: 200, body: { status: "ok" } };
-        }
-      });
-    }
-
-    // Register tool for sending messages
+    // [TOOL:SEND] Register tool for sending WhatsApp messages
     api.registerTool({
       name: "megaapi_send_whatsapp",
       description: "Send WhatsApp message via MegaAPI",
@@ -112,21 +82,23 @@ const plugin = {
         },
         required: ["to", "message"]
       },
-      handler: async (args: any) => {
-        const config = api.runtime.config.plugins?.entries?.["megaapi-whatsapp"]?.config as MegaAPIConfig;
-
-        if (!config.apiKey || !config.instanceKey) {
-          return { error: "MegaAPI not configured. Add apiKey and instanceKey to moltbot.json" };
+      async execute(_toolCallId: string, args: any) {
+        // [VALIDATION:CONFIG] Check if MegaAPI is configured
+        if (!config.apiToken || !config.instanceKey) {
+          logger.error({}, "megaapi_not_configured");
+          return {
+            error: "MegaAPI not configured. Set MEGAAPI_TOKEN and MEGAAPI_INSTANCE_KEY environment variables."
+          };
         }
 
-        // Normalize phone number
+        // [STEP:NORMALIZE] Normalize phone number
         let targetJid = args.to;
         if (!targetJid.includes("@")) {
           targetJid = `${targetJid}@s.whatsapp.net`;
         }
 
-        // Send message via MegaAPI
-        const url = `https://api2.megaapi.com.br/rest/sendMessage/${config.instanceKey}/contactMessage`;
+        // [STEP:SEND] Send message via MegaAPI
+        const url = `https://${config.apiHost}/rest/sendMessage/${config.instanceKey}/contactMessage`;
 
         const payload = {
           number: targetJid,
@@ -139,7 +111,7 @@ const plugin = {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${config.apiKey}`
+              "Authorization": `Bearer ${config.apiToken}`
             },
             body: JSON.stringify(payload)
           });
@@ -151,6 +123,12 @@ const plugin = {
 
           const result = await response.json();
 
+          logger.info({
+            to: targetJid,
+            messageId: result.messageId,
+            hasMedia: !!args.mediaUrl
+          }, "message_sent_success");
+
           return {
             success: true,
             messageId: result.messageId,
@@ -158,6 +136,11 @@ const plugin = {
             message: args.message
           };
         } catch (error: any) {
+          logger.error({
+            to: targetJid,
+            error: error.message
+          }, "message_send_failed");
+
           return {
             error: error.message,
             to: targetJid

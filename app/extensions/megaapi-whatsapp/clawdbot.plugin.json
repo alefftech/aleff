@@ -1,34 +1,10 @@
 {
   "id": "megaapi-whatsapp",
   "name": "MegaAPI WhatsApp",
-  "description": "WhatsApp integration via MegaAPI (Brazilian WhatsApp API service)",
-  "channels": ["megaapi-whatsapp"],
+  "description": "WhatsApp integration via MegaAPI (credentials from env vars)",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {
-      "apiKey": {
-        "type": "string",
-        "description": "MegaAPI Bearer Token"
-      },
-      "instanceKey": {
-        "type": "string",
-        "description": "MegaAPI Instance Key"
-      },
-      "webhookUrl": {
-        "type": "string",
-        "description": "Webhook URL for receiving messages (e.g., https://aleffai.a25.com.br/hooks/megaapi)"
-      },
-      "webhookToken": {
-        "type": "string",
-        "description": "Token to validate webhook requests"
-      },
-      "allowFrom": {
-        "type": "array",
-        "items": { "type": "string" },
-        "description": "Allowlist of WhatsApp numbers (format: 5511999999999@s.whatsapp.net)"
-      }
-    },
-    "required": ["apiKey", "instanceKey"]
+    "properties": {}
   }
 }

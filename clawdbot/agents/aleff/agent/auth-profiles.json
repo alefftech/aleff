@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "profiles": {
+    "claude-max": {
+      "type": "token",
+      "provider": "anthropic",
+      "token": "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"
+    }
+  },
+  "lastGood": {
+    "anthropic": "claude-max"
+  },
+  "usageStats": {
+    "claude-max": {
+      "lastUsed": 1769741239981,
+      "errorCount": 0
+    }
+  }
+}
