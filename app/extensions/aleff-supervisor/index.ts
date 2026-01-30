@@ -48,7 +48,7 @@ import {
   validateChannelId,
 } from "./src/commands.js";
 import { onMessageSending, onMessageReceived } from "./src/hooks.js";
-import { isSupervisorConfigured, getSupervisorId, notifySupervisor } from "./src/notify.js";
+import { isSupervisorConfigured, getSupervisorId, notifySupervisor, notifyOutgoingMessage } from "./src/notify.js";
 import {
   formatConfig,
   setNotificationsEnabled,
@@ -613,6 +613,29 @@ export default function register(
     return onBeforeAgentDispatch(event, ctx);
   });
 
+  // [HOOK:MESSAGE_SENT] Notify supervisor of bot responses (OUTPUT)
+  api.on("message_sent", async (event: any, ctx: any) => {
+    // Only notify if notifications are enabled and this is not from telegram (avoid loop)
+    if (!isNotificationsEnabled()) return;
+    const channelId = ctx.channelId?.toLowerCase() || "unknown";
+
+    // Skip if this is a notification to supervisor (avoid infinite loop)
+    if (channelId === "telegram" && event.to === getSupervisorId()) {
+      return;
+    }
+
+    // Notify supervisor of OUTPUT
+    try {
+      await notifyOutgoingMessage(
+        channelId,
+        event.to || "unknown",
+        event.content?.substring(0, 500) || "(sem conteúdo)"
+      );
+    } catch (error: any) {
+      logger.warn({ error: error.message, channelId }, "output_notification_failed");
+    }
+  });
+
   // ==========================================================================
   // [TOOL:REGISTER] Register all supervisor tools (9 total)
   // ==========================================================================
@@ -636,9 +659,9 @@ export default function register(
 
   logger.info(
     {
-      version: "2.0.0",
+      version: "2.1.0",
       tools: 9,
-      hooks: ["message_sending", "message_received", "before_agent_dispatch"],
+      hooks: ["message_sending", "message_received", "before_agent_dispatch", "message_sent"],
       channels: knownChannels,
       supervisorConfigured: isSupervisorConfigured(),
     },
@@ -646,7 +669,7 @@ export default function register(
   );
 
   pluginLogger.info(
-    `Aleff Supervisor v2.0.0 registered with 9 tools and 3 hooks. ` +
+    `Aleff Supervisor v2.1.0 registered with 9 tools and 4 hooks (INPUT+OUTPUT). ` +
       `Supervisor ${isSupervisorConfigured() ? "configured" : "not configured"}.`
   );
 }

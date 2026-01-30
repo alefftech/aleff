@@ -3,11 +3,13 @@
  *
  * Notifies the supervisor (via Telegram) about events in child channels.
  * Used for:
- * - Incoming messages from WhatsApp/Instagram/etc.
+ * - Incoming messages from WhatsApp/Instagram/etc. (INPUT)
+ * - Outgoing bot responses (OUTPUT)
  * - State changes
  * - Errors and alerts
  */
 
+import { sendMessageTelegram } from "../../../src/telegram/send.js";
 import { logger } from "./logger.js";
 
 // =============================================================================
@@ -21,9 +23,10 @@ const SUPERVISOR_TELEGRAM_ID = process.env.SUPERVISOR_TELEGRAM_ID;
 // =============================================================================
 
 export interface NotificationPayload {
-  type: "message_received" | "state_changed" | "error" | "alert";
+  type: "message_received" | "message_sent" | "state_changed" | "error" | "alert";
   channelId: string;
   from?: string;
+  to?: string;
   content?: string;
   state?: string;
   timestamp: number;
@@ -35,14 +38,13 @@ export interface NotificationPayload {
 // =============================================================================
 
 /**
- * [NOTIFY:SEND] Send a notification to the supervisor
+ * [NOTIFY:SEND] Send a notification to the supervisor via Telegram
  *
- * Note: This is a placeholder implementation. Integration with Telegram
- * outbound will be added when the notification system is connected.
+ * Actually sends the notification to the supervisor's Telegram chat.
  */
 export async function notifySupervisor(
   payload: NotificationPayload
-): Promise<{ sent: boolean; error?: string }> {
+): Promise<{ sent: boolean; error?: string; messageId?: string }> {
   if (!SUPERVISOR_TELEGRAM_ID) {
     logger.debug({ payload }, "supervisor_not_configured");
     return { sent: false, error: "SUPERVISOR_TELEGRAM_ID not configured" };
@@ -50,33 +52,37 @@ export async function notifySupervisor(
 
   try {
     // [FORMAT:MESSAGE] Format notification for Telegram
-    const icon =
-      payload.state === "STOPPED"
-        ? "[PAUSE]"
-        : payload.state === "TAKEOVER"
-          ? "[MANUAL]"
-          : payload.type === "error"
-            ? "[ERROR]"
-            : "[MSG]";
+    const message = formatNotificationMessage(payload);
 
-    const message = formatNotificationMessage(icon, payload);
+    // [SEND:TELEGRAM] Actually send to supervisor via Telegram
+    const result = await sendMessageTelegram(SUPERVISOR_TELEGRAM_ID, message, {
+      verbose: false,
+      textMode: "html",
+      silent: false, // We want notifications
+    });
 
-    // [SEND:TELEGRAM] Log notification for now
-    // TODO: Integrate with Telegram channel outbound when available
     logger.info(
       {
         supervisorId: SUPERVISOR_TELEGRAM_ID,
         channelId: payload.channelId,
         type: payload.type,
+        messageId: result.messageId,
         messageLength: message.length,
       },
-      "notification_prepared"
+      "notification_sent"
     );
 
-    // Return success - actual sending will be implemented with Telegram integration
-    return { sent: true };
+    return { sent: true, messageId: result.messageId };
   } catch (error: any) {
-    logger.error({ error: error.message, payload }, "notification_failed");
+    logger.error(
+      {
+        error: error.message,
+        supervisorId: SUPERVISOR_TELEGRAM_ID,
+        channelId: payload.channelId,
+        type: payload.type,
+      },
+      "notification_failed"
+    );
     return { sent: false, error: error.message };
   }
 }
@@ -86,42 +92,73 @@ export async function notifySupervisor(
 // =============================================================================
 
 /**
- * [FORMAT:MESSAGE] Format a notification payload into a readable message
+ * [FORMAT:MESSAGE] Format a notification payload into a readable HTML message
  */
-function formatNotificationMessage(
-  icon: string,
-  payload: NotificationPayload
-): string {
+function formatNotificationMessage(payload: NotificationPayload): string {
   const lines: string[] = [];
 
-  // Header
-  lines.push(`${icon} **${payload.channelId.toUpperCase()}**`);
+  // [FORMAT:HEADER] Header with icon based on type
+  const channelUpper = payload.channelId.toUpperCase();
 
-  // From (if present)
-  if (payload.from) {
-    lines.push(`De: ${payload.from}`);
+  if (payload.type === "message_received") {
+    // INPUT: User message
+    lines.push(`📩 <b>[INPUT] ${channelUpper}</b>`);
+    if (payload.from) {
+      lines.push(`👤 De: <code>${escapeHtml(payload.from)}</code>`);
+    }
+  } else if (payload.type === "message_sent") {
+    // OUTPUT: Bot response
+    lines.push(`📤 <b>[OUTPUT] ${channelUpper}</b>`);
+    if (payload.to) {
+      lines.push(`👤 Para: <code>${escapeHtml(payload.to)}</code>`);
+    }
+  } else if (payload.type === "state_changed") {
+    const stateIcon = payload.state === "STOPPED" ? "⏸️" : payload.state === "TAKEOVER" ? "🎮" : "▶️";
+    lines.push(`${stateIcon} <b>[STATE] ${channelUpper}</b>`);
+    lines.push(`Estado: <code>${payload.state}</code>`);
+  } else if (payload.type === "error") {
+    lines.push(`🚨 <b>[ERROR] ${channelUpper}</b>`);
+  } else {
+    lines.push(`🔔 <b>[ALERT] ${channelUpper}</b>`);
   }
 
-  // State (if changed)
-  if (payload.state) {
-    lines.push(`Estado: ${payload.state}`);
+  // [FORMAT:METADATA] Additional metadata
+  if (payload.metadata?.reason) {
+    lines.push(`📋 ${escapeHtml(String(payload.metadata.reason))}`);
   }
 
-  // Empty line before content
-  lines.push("");
-
-  // Content (truncated for safety)
+  // [FORMAT:CONTENT] Message content
+  lines.push(""); // Empty line before content
   if (payload.content) {
     const truncated =
       payload.content.length > 500
         ? payload.content.substring(0, 500) + "..."
         : payload.content;
-    lines.push(truncated);
+    lines.push(`<pre>${escapeHtml(truncated)}</pre>`);
   } else {
-    lines.push("(sem conteudo)");
+    lines.push("<i>(sem conteúdo)</i>");
   }
 
+  // [FORMAT:TIMESTAMP] Timestamp
+  const time = new Date(payload.timestamp).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  lines.push("");
+  lines.push(`🕐 ${time}`);
+
   return lines.join("\n");
+}
+
+/**
+ * [FORMAT:ESCAPE] Escape HTML special characters
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 // =============================================================================
@@ -129,7 +166,7 @@ function formatNotificationMessage(
 // =============================================================================
 
 /**
- * [NOTIFY:MESSAGE] Notify about an incoming message
+ * [NOTIFY:INPUT] Notify about an incoming user message (INPUT)
  */
 export async function notifyIncomingMessage(
   channelId: string,
@@ -143,6 +180,23 @@ export async function notifyIncomingMessage(
     from,
     content,
     state,
+    timestamp: Date.now(),
+  });
+}
+
+/**
+ * [NOTIFY:OUTPUT] Notify about an outgoing bot response (OUTPUT)
+ */
+export async function notifyOutgoingMessage(
+  channelId: string,
+  to: string,
+  content: string
+): Promise<{ sent: boolean; error?: string }> {
+  return notifySupervisor({
+    type: "message_sent",
+    channelId,
+    to,
+    content,
     timestamp: Date.now(),
   });
 }
