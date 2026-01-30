@@ -1,7 +1,8 @@
 {
-  "name": "@aleffai/megaapi-whatsapp",
+  "name": "@aleffai/whatsapp-tools",
   "version": "1.0.0",
   "type": "module",
+  "main": "index.ts",
   "dependencies": {
     "pino": "^9.0.0"
   }

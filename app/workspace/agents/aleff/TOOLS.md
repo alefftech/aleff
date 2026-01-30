@@ -58,6 +58,75 @@ Você tem tools para gerenciar seus arquivos de identidade/configuração que pe
 
 ---
 
+## 📱 WhatsApp Tools
+
+Integração via abstração de providers (atualmente usando MegaAPI).
+
+### Mensagens
+
+| Tool | Descrição |
+|------|-----------|
+| `send_whatsapp_message` | Envia mensagem de texto |
+| `reply_whatsapp_message` | Responde a uma mensagem específica (quote) |
+
+### Mídia
+
+| Tool | Descrição |
+|------|-----------|
+| `send_whatsapp_image` | Envia imagem (JPG, PNG, WEBP) |
+| `send_whatsapp_audio` | Envia áudio (MP3, OGG, M4A) |
+| `send_whatsapp_video` | Envia vídeo (MP4) |
+| `send_whatsapp_file` | Envia documento (PDF, DOCX, XLSX) |
+| `send_whatsapp_location` | Envia localização |
+| `send_whatsapp_contact` | Envia cartão de contato |
+
+### Instância
+
+| Tool | Descrição |
+|------|-----------|
+| `whatsapp_status` | Verifica status da conexão |
+| `whatsapp_qr_code` | Obtém QR code para autenticação |
+| `is_on_whatsapp` | Verifica se número está no WhatsApp |
+| `whatsapp_restart` | Reinicia instância |
+| `whatsapp_logout` | Desconecta instância |
+
+### Grupos
+
+| Tool | Descrição |
+|------|-----------|
+| `whatsapp_list_groups` | Lista grupos |
+| `whatsapp_group_info` | Obtém info do grupo |
+| `whatsapp_create_group` | Cria novo grupo |
+| `whatsapp_add_participants` | Adiciona participantes |
+| `whatsapp_remove_participants` | Remove participantes |
+| `whatsapp_leave_group` | Sai do grupo |
+
+**Uso:**
+```
+# Enviar mensagem
+→ Use send_whatsapp_message com:
+  - to: "5511999999999"
+  - message: "Olá!"
+
+# Verificar status
+→ Use whatsapp_status (sem parâmetros)
+
+# Enviar imagem
+→ Use send_whatsapp_image com:
+  - to: "5511999999999"
+  - imageUrl: "https://example.com/image.jpg"
+  - caption: "Descrição" (opcional)
+```
+
+**Arquitetura:**
+- `whatsapp-core` - Tipos e cliente abstrato
+- `whatsapp-megaapi` - Adapter MegaAPI (provider atual)
+- `whatsapp-tools` - Tools MCP registradas
+
+**Trocar Provider:** Mudar 1 linha de config em moltbot.json
+
+---
+
 ## Data Sources
 
 ### Supabase (Source of Truth)
@@ -277,4 +346,4 @@ apify call apify/linkedin-profile-scraper \
 ---
 
 **Last Updated:** 2026-01-30
-**Version:** 2.1.0 (+ Workspace Persistence Tools)
+**Version:** 2.2.0 (+ WhatsApp Provider Abstraction)

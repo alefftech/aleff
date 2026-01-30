@@ -1,0 +1,10 @@
+{
+  "id": "whatsapp-tools",
+  "name": "WhatsApp Tools",
+  "description": "MCP tools for WhatsApp communication (provider-agnostic)",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

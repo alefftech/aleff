@@ -1,0 +1,10 @@
+{
+  "id": "whatsapp-core",
+  "name": "WhatsApp Core",
+  "description": "Provider-agnostic WhatsApp abstraction layer with types, client singleton, and presence manager",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

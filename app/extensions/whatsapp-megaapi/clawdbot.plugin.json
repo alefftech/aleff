@@ -1,0 +1,10 @@
+{
+  "id": "whatsapp-megaapi",
+  "name": "WhatsApp MegaAPI",
+  "description": "MegaAPI Starter adapter for WhatsApp provider abstraction",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

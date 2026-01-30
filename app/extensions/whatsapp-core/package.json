@@ -1,0 +1,13 @@
+{
+  "name": "@aleffai/whatsapp-core",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./src/types/index.ts"
+  },
+  "dependencies": {
+    "pino": "^9.0.0"
+  }
+}
