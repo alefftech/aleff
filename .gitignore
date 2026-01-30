@@ -80,3 +80,4 @@ gogcli/keyring/
 # Auto-generated workspace files
 /workspace/*.md
 !/workspace/agents/
+gogcli/
