@@ -245,7 +245,8 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
           const captureResult = await captureFromConversation(
             ctx.conversationId || "unknown",
             ctx.lastUserMessage,
-            event.content
+            event.content,
+            ctx.channelId // Pass channel for memory isolation
           );
           if (captureResult.captured > 0) {
             structuredLogger.info(
@@ -253,6 +254,7 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
                 hook: "message_sent",
                 captured: captureResult.captured,
                 categories: captureResult.categories,
+                channel: ctx.channelId,
               },
               "auto_capture_from_message_sent"
             );
@@ -457,7 +459,8 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
           const captureResult = await captureFromConversation(
             ctx.conversationId || "unknown",
             ctx.lastUserMessage,
-            textContent
+            textContent,
+            ctx?.channelId // Pass channel for memory isolation
           );
           if (captureResult.captured > 0) {
             structuredLogger.info(
@@ -465,6 +468,7 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
                 hook: "agent_end",
                 captured: captureResult.captured,
                 categories: captureResult.categories,
+                channel: ctx?.channelId,
               },
               "auto_capture_from_agent_end"
             );

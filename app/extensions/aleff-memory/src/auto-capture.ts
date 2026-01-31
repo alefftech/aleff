@@ -109,12 +109,14 @@ export function detectCategory(text: string): CaptureCategory {
  * @param conversationId - ID of the conversation
  * @param userMessage - User's message content
  * @param assistantResponse - Assistant's response content
+ * @param channel - Channel identifier for memory isolation (telegram, whatsapp, etc)
  * @returns Count of items captured
  */
 export async function captureFromConversation(
   conversationId: string,
   userMessage: string,
-  assistantResponse: string
+  assistantResponse: string,
+  channel?: string
 ): Promise<CaptureResult> {
   const result: CaptureResult = {
     captured: 0,
@@ -137,7 +139,7 @@ export async function captureFromConversation(
       // Generate embedding for vector search
       const embedding = await generateEmbedding(text);
 
-      // Save to memory_index
+      // Save to memory_index with channel for isolation
       await query(
         `INSERT INTO memory_index (
           key_type,
@@ -145,8 +147,9 @@ export async function captureFromConversation(
           summary,
           importance,
           tags,
-          embedding
-        ) VALUES ($1, $2, $3, $4, $5, $6::vector)`,
+          embedding,
+          channel
+        ) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)`,
         [
           category,
           `auto_${source}_${Date.now()}`,
@@ -154,6 +157,7 @@ export async function captureFromConversation(
           category === "decision" ? 8 : category === "contact" ? 7 : 5,
           [`auto_capture`, source, category],
           embedding ? formatEmbeddingForPg(embedding) : null,
+          channel || null,
         ]
       );
 
@@ -165,6 +169,7 @@ export async function captureFromConversation(
           conversationId,
           category,
           source,
+          channel,
           textLength: text.length,
         },
         "auto_capture_saved"
@@ -175,6 +180,7 @@ export async function captureFromConversation(
           error: String(err),
           conversationId,
           category,
+          channel,
         },
         "auto_capture_failed"
       );

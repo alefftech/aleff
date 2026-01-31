@@ -43,21 +43,17 @@ const DEFAULT_CONFIG = {
 
 /**
  * Search memory_index using vector similarity
- * Note: memory_index is shared across channels (contains agent knowledge, not user conversations)
+ * @param channel - Optional channel to filter by (for memory isolation)
  */
 async function searchMemoryIndex(
   embedding: number[],
-  config: typeof DEFAULT_CONFIG
+  config: typeof DEFAULT_CONFIG,
+  channel?: string
 ): Promise<RecalledMemory[]> {
   try {
-    // memory_index is intentionally shared - it contains agent knowledge, not user conversations
-    const results = await query<{
-      key_type: string;
-      summary: string;
-      similarity: number;
-      tags: string[];
-    }>(
-      `SELECT
+    // Filter by channel for memory isolation (NULL channel = shared)
+    let sql = `
+      SELECT
         key_type,
         summary,
         1 - (embedding <=> $1::vector) as similarity,
@@ -65,14 +61,28 @@ async function searchMemoryIndex(
       FROM memory_index
       WHERE embedding IS NOT NULL
       AND 1 - (embedding <=> $1::vector) > $2
-      ORDER BY embedding <=> $1::vector
-      LIMIT $3`,
-      [
-        formatEmbeddingForPg(embedding),
-        config.similarityThreshold,
-        config.maxMemories,
-      ]
-    );
+    `;
+
+    const params: unknown[] = [
+      formatEmbeddingForPg(embedding),
+      config.similarityThreshold,
+    ];
+
+    if (channel) {
+      sql += ` AND (channel = $4 OR channel IS NULL)`;
+      params.push(config.maxMemories, channel);
+    } else {
+      params.push(config.maxMemories);
+    }
+
+    sql += ` ORDER BY embedding <=> $1::vector LIMIT $3`;
+
+    const results = await query<{
+      key_type: string;
+      summary: string;
+      similarity: number;
+      tags: string[];
+    }>(sql, params);
 
     return results.map((r) => ({
       category: r.key_type,
@@ -81,7 +91,7 @@ async function searchMemoryIndex(
       source: r.tags?.includes("auto_capture") ? "auto" : "explicit",
     }));
   } catch (err) {
-    logger.error({ error: String(err) }, "memory_index_search_failed");
+    logger.error({ error: String(err), channel }, "memory_index_search_failed");
     return [];
   }
 }
@@ -242,10 +252,10 @@ export async function recallForPrompt(
   }
 
   // Search all sources in parallel
-  // Note: memory_index and facts are shared across channels (agent knowledge)
-  // Only messages are isolated by channel (user conversations)
+  // memory_index and messages are isolated by channel
+  // facts (knowledge graph) is shared across channels
   const [memoryIndexResults, factsResults, messagesResults] = await Promise.all([
-    searchMemoryIndex(embedding, cfg), // Shared - agent knowledge
+    searchMemoryIndex(embedding, cfg, channel), // Isolated by channel
     searchFacts(embedding, cfg), // Shared - knowledge graph
     searchMessages(embedding, cfg, channel), // Isolated by channel
   ]);

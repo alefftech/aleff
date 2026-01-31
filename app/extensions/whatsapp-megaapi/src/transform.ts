@@ -132,37 +132,52 @@ function log(level: string, data: Record<string, unknown>, msg: string) {
 // [FUNC:NOTIFY] Removed - supervisor notifications now handled via whatsapp_messages tool
 
 // =============================================================================
-// [FUNC:PERSIST] Persist user message to database
+// [FUNC:PERSIST] Persist user message to database via HTTP
 // =============================================================================
-// The message_received hook doesn't fire for transform-based messages,
-// so we need to persist directly here.
+// The message_received hook doesn't fire for transform-based messages.
+// We use direct pg connection since dynamic import may fail in jiti context.
+
+import pg from "pg";
+
+let sharedPool: pg.Pool | null = null;
+
+function getPool(): pg.Pool | null {
+  if (sharedPool) return sharedPool;
+  if (!isPostgresConfigured()) return null;
+
+  try {
+    sharedPool = new pg.Pool(
+      DATABASE_URL
+        ? { connectionString: DATABASE_URL, max: 3 }
+        : {
+            host: POSTGRES_HOST,
+            user: POSTGRES_USER,
+            password: POSTGRES_PASSWORD,
+            database: POSTGRES_DB,
+            max: 3,
+          }
+    );
+    return sharedPool;
+  } catch (err: any) {
+    log("error", { error: err.message }, "pool_creation_failed");
+    return null;
+  }
+}
 
 async function persistUserMessage(
   userId: string,
   userName: string,
   content: string
 ): Promise<void> {
-  if (!isPostgresConfigured()) {
+  log("debug", { userId, contentLength: content.length }, "persist_user_message_called");
+
+  const pool = getPool();
+  if (!pool) {
     log("debug", {}, "postgres_not_configured_skip_persist");
     return;
   }
 
   try {
-    // Dynamic import to avoid issues if pg is not available
-    const pg = await import("pg");
-    const { Pool } = pg.default || pg;
-
-    const pool = new Pool(
-      DATABASE_URL
-        ? { connectionString: DATABASE_URL }
-        : {
-            host: POSTGRES_HOST,
-            user: POSTGRES_USER,
-            password: POSTGRES_PASSWORD,
-            database: POSTGRES_DB,
-          }
-    );
-
     // Get or create conversation
     const convResult = await pool.query(
       `INSERT INTO conversations (user_id, user_name, channel, agent_id)
@@ -181,11 +196,9 @@ async function persistUserMessage(
       [conversationId, content]
     );
 
-    await pool.end();
-
     log("info", { userId, conversationId }, "user_message_persisted");
   } catch (err: any) {
-    log("error", { error: err.message }, "persist_user_message_failed");
+    log("error", { error: err.message, stack: err.stack }, "persist_user_message_failed");
   }
 }
 
