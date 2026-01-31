@@ -43,17 +43,21 @@ const DEFAULT_CONFIG = {
 
 /**
  * Search memory_index using vector similarity
- * @param agentId - Optional agent ID to filter by (isolation between supervisor/child)
+ * Note: memory_index is shared across channels (contains agent knowledge, not user conversations)
  */
 async function searchMemoryIndex(
   embedding: number[],
-  config: typeof DEFAULT_CONFIG,
-  agentId?: string
+  config: typeof DEFAULT_CONFIG
 ): Promise<RecalledMemory[]> {
   try {
-    // [ISOLATION:AGENT] Build query with optional agent filter
-    let sql = `
-      SELECT
+    // memory_index is intentionally shared - it contains agent knowledge, not user conversations
+    const results = await query<{
+      key_type: string;
+      summary: string;
+      similarity: number;
+      tags: string[];
+    }>(
+      `SELECT
         key_type,
         summary,
         1 - (embedding <=> $1::vector) as similarity,
@@ -61,29 +65,14 @@ async function searchMemoryIndex(
       FROM memory_index
       WHERE embedding IS NOT NULL
       AND 1 - (embedding <=> $1::vector) > $2
-    `;
-
-    const params: unknown[] = [
-      formatEmbeddingForPg(embedding),
-      config.similarityThreshold,
-    ];
-
-    // [FILTER:AGENT] Filter by agent_id if provided (allows NULL for shared memories)
-    if (agentId) {
-      sql += ` AND (agent_id = $4 OR agent_id IS NULL)`;
-      params.push(config.maxMemories, agentId);
-    } else {
-      params.push(config.maxMemories);
-    }
-
-    sql += ` ORDER BY embedding <=> $1::vector LIMIT $3`;
-
-    const results = await query<{
-      key_type: string;
-      summary: string;
-      similarity: number;
-      tags: string[];
-    }>(sql, params);
+      ORDER BY embedding <=> $1::vector
+      LIMIT $3`,
+      [
+        formatEmbeddingForPg(embedding),
+        config.similarityThreshold,
+        config.maxMemories,
+      ]
+    );
 
     return results.map((r) => ({
       category: r.key_type,
@@ -92,7 +81,7 @@ async function searchMemoryIndex(
       source: r.tags?.includes("auto_capture") ? "auto" : "explicit",
     }));
   } catch (err) {
-    logger.error({ error: String(err), agentId }, "memory_index_search_failed");
+    logger.error({ error: String(err) }, "memory_index_search_failed");
     return [];
   }
 }
@@ -144,15 +133,15 @@ async function searchFacts(
 
 /**
  * Search recent messages using vector similarity
- * @param agentId - Optional agent ID to filter by (isolation between supervisor/child)
+ * @param channel - Optional channel to filter by (isolation between telegram/whatsapp)
  */
 async function searchMessages(
   embedding: number[],
   config: typeof DEFAULT_CONFIG,
-  agentId?: string
+  channel?: string
 ): Promise<RecalledMemory[]> {
   try {
-    // [ISOLATION:AGENT] Build query with optional agent filter via conversations join
+    // [ISOLATION:CHANNEL] Build query with optional channel filter via conversations join
     let sql = `
       SELECT
         m.role,
@@ -169,10 +158,10 @@ async function searchMessages(
       config.similarityThreshold,
     ];
 
-    // [FILTER:AGENT] Filter by agent_id if provided
-    if (agentId) {
-      sql += ` AND c.agent_id = $4`;
-      params.push(config.maxMemories, agentId);
+    // [FILTER:CHANNEL] Filter by channel if provided
+    if (channel) {
+      sql += ` AND c.channel = $4`;
+      params.push(config.maxMemories, channel);
     } else {
       params.push(config.maxMemories);
     }
@@ -192,7 +181,7 @@ async function searchMessages(
       source: "conversation",
     }));
   } catch (err) {
-    logger.error({ error: String(err), agentId }, "messages_search_failed");
+    logger.error({ error: String(err), channel }, "messages_search_failed");
     return [];
   }
 }
@@ -230,13 +219,13 @@ ${lines.join("\n")}
  *
  * @param prompt - The user's prompt/question
  * @param config - Optional configuration overrides
- * @param agentId - Optional agent ID for memory isolation (supervisor vs child)
+ * @param channel - Optional channel for memory isolation (telegram vs whatsapp)
  * @returns RecallResult with memories and formatted XML
  */
 export async function recallForPrompt(
   prompt: string,
   config: Partial<typeof DEFAULT_CONFIG> = {},
-  agentId?: string
+  channel?: string
 ): Promise<RecallResult> {
   const cfg = { ...DEFAULT_CONFIG, ...config };
 
@@ -248,16 +237,17 @@ export async function recallForPrompt(
   // Generate embedding for the prompt
   const embedding = await generateEmbedding(prompt);
   if (!embedding) {
-    logger.warn({ promptLength: prompt.length, agentId }, "embedding_generation_failed_for_recall");
+    logger.warn({ promptLength: prompt.length, channel }, "embedding_generation_failed_for_recall");
     return { memories: [], formatted: null };
   }
 
   // Search all sources in parallel
-  // Note: facts (knowledge graph) is shared across agents - that's intentional
+  // Note: memory_index and facts are shared across channels (agent knowledge)
+  // Only messages are isolated by channel (user conversations)
   const [memoryIndexResults, factsResults, messagesResults] = await Promise.all([
-    searchMemoryIndex(embedding, cfg, agentId),
-    searchFacts(embedding, cfg), // Knowledge graph is shared - OK
-    searchMessages(embedding, cfg, agentId),
+    searchMemoryIndex(embedding, cfg), // Shared - agent knowledge
+    searchFacts(embedding, cfg), // Shared - knowledge graph
+    searchMessages(embedding, cfg, channel), // Isolated by channel
   ]);
 
   // Combine and deduplicate by content similarity
@@ -293,7 +283,7 @@ export async function recallForPrompt(
       promptLength: prompt.length,
       memoriesFound: uniqueMemories.length,
       topSimilarity: uniqueMemories[0]?.similarity,
-      agentId: agentId || "global",
+      channel: channel || "global",
     },
     "auto_recall_completed"
   );
@@ -311,12 +301,12 @@ export async function recallForPrompt(
  * or null if no relevant memories found.
  *
  * @param prompt - The user's prompt/question
- * @param agentId - Optional agent ID for memory isolation
+ * @param channel - Optional channel for memory isolation
  */
 export async function getMemoryContext(
   prompt: string,
-  agentId?: string
+  channel?: string
 ): Promise<string | null> {
-  const result = await recallForPrompt(prompt, {}, agentId);
+  const result = await recallForPrompt(prompt, {}, channel);
   return result.formatted;
 }

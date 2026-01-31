@@ -26,6 +26,17 @@ const MEGAAPI_INSTANCE = process.env.MEGAAPI_INSTANCE_KEY || "";
 // Note: Supervisor notifications were removed from transform.ts
 // The supervisor can use the whatsapp_messages tool to query messages on demand.
 
+// Database config for persisting user messages (hook message_received doesn't fire for transforms)
+const DATABASE_URL = process.env.DATABASE_URL || "";
+const POSTGRES_HOST = process.env.POSTGRES_HOST || "";
+const POSTGRES_USER = process.env.POSTGRES_USER || "";
+const POSTGRES_PASSWORD = process.env.POSTGRES_PASSWORD || "";
+const POSTGRES_DB = process.env.POSTGRES_DB || "";
+
+function isPostgresConfigured(): boolean {
+  return Boolean(DATABASE_URL || (POSTGRES_HOST && POSTGRES_USER && POSTGRES_PASSWORD && POSTGRES_DB));
+}
+
 // =============================================================================
 // [TYPE:PAYLOAD] MegaAPI Webhook Payload
 // =============================================================================
@@ -119,6 +130,64 @@ function log(level: string, data: Record<string, unknown>, msg: string) {
 }
 
 // [FUNC:NOTIFY] Removed - supervisor notifications now handled via whatsapp_messages tool
+
+// =============================================================================
+// [FUNC:PERSIST] Persist user message to database
+// =============================================================================
+// The message_received hook doesn't fire for transform-based messages,
+// so we need to persist directly here.
+
+async function persistUserMessage(
+  userId: string,
+  userName: string,
+  content: string
+): Promise<void> {
+  if (!isPostgresConfigured()) {
+    log("debug", {}, "postgres_not_configured_skip_persist");
+    return;
+  }
+
+  try {
+    // Dynamic import to avoid issues if pg is not available
+    const pg = await import("pg");
+    const { Pool } = pg.default || pg;
+
+    const pool = new Pool(
+      DATABASE_URL
+        ? { connectionString: DATABASE_URL }
+        : {
+            host: POSTGRES_HOST,
+            user: POSTGRES_USER,
+            password: POSTGRES_PASSWORD,
+            database: POSTGRES_DB,
+          }
+    );
+
+    // Get or create conversation
+    const convResult = await pool.query(
+      `INSERT INTO conversations (user_id, user_name, channel, agent_id)
+       VALUES ($1, $2, 'whatsapp', 'aleff')
+       ON CONFLICT (user_id, channel, agent_id)
+       DO UPDATE SET user_name = COALESCE(EXCLUDED.user_name, conversations.user_name), updated_at = NOW()
+       RETURNING id`,
+      [userId, userName || null]
+    );
+    const conversationId = convResult.rows[0].id;
+
+    // Insert message
+    await pool.query(
+      `INSERT INTO messages (conversation_id, role, content)
+       VALUES ($1, 'user', $2)`,
+      [conversationId, content]
+    );
+
+    await pool.end();
+
+    log("info", { userId, conversationId }, "user_message_persisted");
+  } catch (err: any) {
+    log("error", { error: err.message }, "persist_user_message_failed");
+  }
+}
 
 // =============================================================================
 // [FUNC:DOWNLOAD] Download media from MegaAPI
@@ -396,7 +465,8 @@ export default async function transform(
     messageLength: finalMessage.length,
   }, "transform_complete");
 
-  // [NOTIFY:REMOVED] Supervisor notifications removed - use whatsapp_messages tool instead
+  // [PERSIST:USER] Save user message to database (hook doesn't fire for transforms)
+  await persistUserMessage(sender.jid, sender.name, finalMessage);
 
   return {
     message: finalMessage,
