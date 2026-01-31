@@ -296,8 +296,12 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
           return {};
         }
 
+        // [ISOLATION:AGENT] Extract agentId from context for memory isolation
+        // This ensures supervisor (Telegram) and child (WhatsApp) have separate memories
+        const agentId = ctx?.accountId || ctx?.agentId || "aleff";
+
         try {
-          const recallResult = await recallForPrompt(prompt);
+          const recallResult = await recallForPrompt(prompt, {}, agentId);
           if (recallResult.formatted) {
             structuredLogger.info(
               {
@@ -305,6 +309,7 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
                 memoriesCount: recallResult.memories.length,
                 topSimilarity: recallResult.memories[0]?.similarity,
                 promptLength: prompt.length,
+                agentId,
               },
               "auto_recall_injecting_context"
             );
@@ -312,7 +317,7 @@ export default function register(api: MoltbotPluginApi, config: AleffMemoryConfi
           }
         } catch (recallErr) {
           structuredLogger.error(
-            { hook: "before_agent_start", error: String(recallErr) },
+            { hook: "before_agent_start", error: String(recallErr), agentId },
             "auto_recall_failed"
           );
         }

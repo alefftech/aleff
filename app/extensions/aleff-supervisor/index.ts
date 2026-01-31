@@ -48,7 +48,7 @@ import {
   validateChannelId,
 } from "./src/commands.js";
 import { onMessageSending, onMessageReceived } from "./src/hooks.js";
-import { isSupervisorConfigured, getSupervisorId, notifySupervisor, notifyOutgoingMessage } from "./src/notify.js";
+import { isSupervisorConfigured, getSupervisorId } from "./src/notify.js";
 import {
   formatConfig,
   setNotificationsEnabled,
@@ -62,6 +62,7 @@ import {
 } from "./src/config.js";
 import { analyzeTriggers, formatTriggers } from "./src/triggers.js";
 import { runFilterSubagent, getSubagentStatus } from "./src/subagent.js";
+import { createWhatsAppMessagesTool } from "./src/tools-whatsapp.js";
 
 // =============================================================================
 // [PLUGIN:CONFIG] Plugin configuration
@@ -529,21 +530,14 @@ async function onBeforeAgentDispatch(
     }
   }
 
-  // [NOTIFY:SEND] Send notification to supervisor
-  if (shouldNotify && isSupervisorConfigured()) {
-    await notifySupervisor({
-      type: "message_received",
-      channelId,
-      from: event.from,
-      content: event.content.substring(0, 500),
-      timestamp: event.timestamp,
-      metadata: {
-        reason: notifyReason,
-        bufferedCount: event.totalBuffered,
-        conversationId: event.conversationId,
-        messageId: event.messageId,
-      },
-    });
+  // [NOTIFY:REMOVED] Notifications removed to avoid polluting supervisor chat.
+  // The supervisor can use whatsapp_messages tool to query messages on demand.
+  // Logging is kept for debugging purposes.
+  if (shouldNotify) {
+    logger.info(
+      { channelId, from: event.from, reason: notifyReason },
+      "message_would_have_notified"
+    );
   }
 
   const durationMs = Date.now() - startTime;
@@ -613,28 +607,9 @@ export default function register(
     return onBeforeAgentDispatch(event, ctx);
   });
 
-  // [HOOK:MESSAGE_SENT] Notify supervisor of bot responses (OUTPUT)
-  api.on("message_sent", async (event: any, ctx: any) => {
-    // Only notify if notifications are enabled and this is not from telegram (avoid loop)
-    if (!isNotificationsEnabled()) return;
-    const channelId = ctx.channelId?.toLowerCase() || "unknown";
-
-    // Skip if this is a notification to supervisor (avoid infinite loop)
-    if (channelId === "telegram" && event.to === getSupervisorId()) {
-      return;
-    }
-
-    // Notify supervisor of OUTPUT
-    try {
-      await notifyOutgoingMessage(
-        channelId,
-        event.to || "unknown",
-        event.content?.substring(0, 500) || "(sem conteúdo)"
-      );
-    } catch (error: any) {
-      logger.warn({ error: error.message, channelId }, "output_notification_failed");
-    }
-  });
+  // [HOOK:MESSAGE_SENT] Previously notified supervisor - now logs only
+  // Notifications were removed to avoid polluting the supervisor chat.
+  // Use the whatsapp_messages tool to query messages on demand.
 
   // ==========================================================================
   // [TOOL:REGISTER] Register all supervisor tools (9 total)
@@ -653,15 +628,18 @@ export default function register(
   api.registerTool(createSubagentTool());
   api.registerTool(createTriggersTool());
 
+  // WhatsApp query tool (1) - replaces automatic notifications
+  api.registerTool(createWhatsAppMessagesTool());
+
   // ==========================================================================
   // [PLUGIN:READY] Log successful registration
   // ==========================================================================
 
   logger.info(
     {
-      version: "2.1.0",
-      tools: 9,
-      hooks: ["message_sending", "message_received", "before_agent_dispatch", "message_sent"],
+      version: "2.2.0",
+      tools: 10,
+      hooks: ["message_sending", "message_received", "before_agent_dispatch"],
       channels: knownChannels,
       supervisorConfigured: isSupervisorConfigured(),
     },
@@ -669,7 +647,7 @@ export default function register(
   );
 
   pluginLogger.info(
-    `Aleff Supervisor v2.1.0 registered with 9 tools and 4 hooks (INPUT+OUTPUT). ` +
+    `Aleff Supervisor v2.2.0 registered with 10 tools and 3 hooks (no auto-notifications). ` +
       `Supervisor ${isSupervisorConfigured() ? "configured" : "not configured"}.`
   );
 }

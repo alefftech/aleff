@@ -7,11 +7,28 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **aleff-supervisor: Tool `whatsapp_messages`** (v2.2.0)
+  - Nova tool para supervisor consultar mensagens do WhatsApp sob demanda
+  - Filtros: `limit`, `phone`, `days`, `search`
+  - Substitui notificações automáticas que poluíam o chat
+
+- **aleff-memory: Isolamento por agentId** (v2.2.1)
+  - Memórias (memory_index, messages) agora filtradas por agentId
+  - Supervisor (Telegram) e child (WhatsApp) têm memórias isoladas
+  - Knowledge graph (facts) permanece compartilhado (intencional)
+
 - **whatsapp-megaapi: Dispatch Pipeline Integration** (WIP)
   - `src/runtime.ts` - Singleton para acesso ao PluginRuntime entre módulos
   - `src/monitor.ts` - Processa mensagens inbound via `dispatchReplyWithBufferedBlockDispatcher`
   - `src/webhook-handler.ts` - HTTP handler para webhooks com suporte a múltiplos paths
   - Suporte a `/megaapi-webhook` (novo) e `/hooks/megaapi` (legacy)
+
+### Removed
+- **aleff-supervisor: Notificações automáticas INPUT/OUTPUT**
+  - Removido hook `message_sent` que enviava `📤 [OUTPUT]` ao Telegram
+  - Removido `notifySupervisor()` do hook `before_agent_dispatch`
+  - Removido `notifySupervisorInput()` do transform.ts
+  - Motivo: poluía o chat do supervisor com mensagens automáticas
 
 ### Fixed
 - **aleff-supervisor: Notificações Telegram reais** (commit f5ac4b1d5)
@@ -21,12 +38,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - **whatsapp-megaapi/index.ts** - Substituído `api.emit("whatsapp:message")` por `api.registerHttpHandler()`
 - **gateway/server-http.ts** - Sistema de `/hooks` agora passa adiante para outros handlers quando não encontra mapeamento (em vez de retornar 404)
-
-### In Progress
-- WhatsApp INPUT notifications ainda não funcionam porque:
-  - Webhook do MegaAPI configurado para `/hooks/megaapi` com token do sistema de hooks
-  - Handler precisa aceitar esse token (não apenas MEGAAPI_WEBHOOK_TOKEN)
-  - Necessário: validar token do hooks.token OU atualizar URL no MegaAPI dashboard
+- **aleff-supervisor** - Versão 2.1.0 → 2.2.0 (10 tools, 3 hooks)
 
 ---
 

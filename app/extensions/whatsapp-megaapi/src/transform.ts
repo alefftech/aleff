@@ -11,6 +11,8 @@
  * - Vídeo (videoMessage)
  * - Documento (documentMessage)
  * - Sticker, Location, Contact
+ *
+ * Also notifies supervisor of incoming WhatsApp messages (INPUT notification).
  */
 
 // =============================================================================
@@ -20,6 +22,9 @@
 const MEGAAPI_HOST = process.env.MEGAAPI_API_HOST || "apistart01.megaapi.com.br";
 const MEGAAPI_TOKEN = process.env.MEGAAPI_TOKEN || "";
 const MEGAAPI_INSTANCE = process.env.MEGAAPI_INSTANCE_KEY || "";
+
+// Note: Supervisor notifications were removed from transform.ts
+// The supervisor can use the whatsapp_messages tool to query messages on demand.
 
 // =============================================================================
 // [TYPE:PAYLOAD] MegaAPI Webhook Payload
@@ -112,6 +117,8 @@ function log(level: string, data: Record<string, unknown>, msg: string) {
   };
   console.log(JSON.stringify(entry));
 }
+
+// [FUNC:NOTIFY] Removed - supervisor notifications now handled via whatsapp_messages tool
 
 // =============================================================================
 // [FUNC:DOWNLOAD] Download media from MegaAPI
@@ -388,6 +395,8 @@ export default async function transform(
     hasMedia: !!channel,
     messageLength: finalMessage.length,
   }, "transform_complete");
+
+  // [NOTIFY:REMOVED] Supervisor notifications removed - use whatsapp_messages tool instead
 
   return {
     message: finalMessage,
